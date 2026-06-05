@@ -304,14 +304,17 @@
       lctx.imageSmoothingEnabled=false;
       lctx.drawImage(tmp,0,0,tw,th,0,0,comp.width,comp.height);
     }else if(effectType==='blur'){
-      // iOS Safari ignores ctx.filter='blur()', so use downscale -> smooth upscale.
+      // Multi-step down/up scaling approximates a smooth (gaussian-like) blur,
+      // without relying on ctx.filter (unsupported on iOS Safari).
       const f=Math.max(2,strength*0.6);
-      const tw=Math.max(1,Math.round(comp.width/f)), th=Math.max(1,Math.round(comp.height/f));
-      const tmp=document.createElement('canvas'); tmp.width=tw; tmp.height=th;
-      const tctx=tmp.getContext('2d'); tctx.imageSmoothingEnabled=true; tctx.imageSmoothingQuality='high';
-      tctx.drawImage(comp,0,0,comp.width,comp.height,0,0,tw,th);
+      const targetW=Math.max(1,Math.round(comp.width/f)), targetH=Math.max(1,Math.round(comp.height/f));
+      let cur=comp, cw=comp.width, ch=comp.height;
+      const step=(nw,nh)=>{ const c=document.createElement('canvas'); c.width=nw; c.height=nh; const cx=c.getContext('2d'); cx.imageSmoothingEnabled=true; cx.imageSmoothingQuality='high'; cx.drawImage(cur,0,0,cw,ch,0,0,nw,nh); cur=c; cw=nw; ch=nh; };
+      while(cw>targetW*2||ch>targetH*2) step(Math.max(targetW,Math.round(cw/2)),Math.max(targetH,Math.round(ch/2)));
+      step(targetW,targetH);
+      while(cw<comp.width/2||ch<comp.height/2) step(Math.min(comp.width,cw*2),Math.min(comp.height,ch*2));
       lctx.imageSmoothingEnabled=true; lctx.imageSmoothingQuality='high';
-      lctx.drawImage(tmp,0,0,tw,th,0,0,comp.width,comp.height);
+      lctx.drawImage(cur,0,0,cw,ch,0,0,comp.width,comp.height);
     }else{ // box: solid average-ish color -> use heavy downscale to 1px then fill
       const tmp=document.createElement('canvas'); tmp.width=1; tmp.height=1;
       tmp.getContext('2d').drawImage(comp,0,0,comp.width,comp.height,0,0,1,1);
