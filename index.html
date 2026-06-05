@@ -29,98 +29,43 @@
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; overflow: hidden; }
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   body {
-    font-family: var(--font);
-    background: var(--bg);
-    color: var(--ink);
-    display: flex; flex-direction: column;
-    height: 100dvh;
-    -webkit-font-smoothing: antialiased;
+    font-family: var(--font); background: var(--bg); color: var(--ink);
+    display: flex; flex-direction: column; height: 100dvh;
+    -webkit-font-smoothing: antialiased; user-select: none;
   }
 
-  /* ---------- Header ---------- */
   header {
-    flex: none;
-    padding: max(14px, env(safe-area-inset-top)) 20px 0;
+    flex: none; padding: max(14px, env(safe-area-inset-top)) 20px 0;
     display: flex; flex-direction: column; gap: 14px;
   }
   .brand { display: flex; align-items: center; gap: 10px; }
-  .brand-mark {
-    width: 26px; height: 26px; border-radius: 7px;
-    background: var(--accent); position: relative; flex: none;
-  }
+  .brand-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); position: relative; flex: none; }
   .brand-mark::before {
-    content: ""; position: absolute; inset: 6px 6px auto auto;
-    width: 8px; height: 8px; background: var(--bg); border-radius: 2px;
+    content: ""; position: absolute; inset: 6px 6px auto auto; width: 8px; height: 8px;
+    background: var(--bg); border-radius: 2px;
     box-shadow: -10px 0 0 var(--bg), 0 10px 0 var(--bg), -10px 10px 0 rgba(247,245,250,.55);
   }
   .brand h1 { font-size: 17px; font-weight: 900; letter-spacing: .04em; }
   .brand h1 span { color: var(--accent); }
 
-  /* ---------- Tabs ---------- */
-  .tabs {
-    display: flex; gap: 4px; background: var(--surface);
-    padding: 4px; border-radius: 12px; border: 1px solid var(--line);
-    width: fit-content;
-  }
-  .tab {
-    appearance: none; border: none; cursor: pointer; font-family: var(--font);
-    font-size: 14px; font-weight: 700; color: var(--ink-soft);
-    background: transparent; padding: 9px 22px; border-radius: 9px;
-    transition: color .18s, background .18s; letter-spacing: .02em;
-  }
+  .tabs { display: flex; gap: 4px; background: var(--surface); padding: 4px; border-radius: 12px; border: 1px solid var(--line); width: fit-content; }
+  .tab { appearance: none; border: none; cursor: pointer; font-family: var(--font); font-size: 14px; font-weight: 700; color: var(--ink-soft); background: transparent; padding: 9px 22px; border-radius: 9px; transition: color .18s, background .18s; letter-spacing: .02em; }
   .tab.active { color: #fff; background: var(--accent); }
 
-  /* ---------- Tool panel ---------- */
-  .toolpanel {
-    flex: none;
-    margin: 14px 20px 0;
-    padding: 12px 16px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    display: none;
-    align-items: center;
-    gap: 18px;
-  }
+  .toolpanel { flex: none; margin: 14px 20px 0; padding: 12px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; display: none; align-items: center; gap: 18px; }
   .toolpanel.show { display: flex; }
-
   .ctl { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
-  .ctl > label {
-    font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap;
-  }
-  .ctl .val {
-    font-size: 12px; font-weight: 700; color: var(--accent-deep);
-    min-width: 30px; text-align: right; font-variant-numeric: tabular-nums;
-  }
-
-  input[type=range] {
-    -webkit-appearance: none; appearance: none;
-    flex: 1; min-width: 80px; height: 4px; border-radius: 99px;
-    background: var(--line); outline: none; cursor: pointer;
-  }
-  input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none; appearance: none;
-    width: 18px; height: 18px; border-radius: 50%;
-    background: var(--accent); border: 3px solid #fff;
-    box-shadow: 0 1px 4px rgba(74,40,115,.4); cursor: pointer;
-  }
-  input[type=range]::-moz-range-thumb {
-    width: 18px; height: 18px; border-radius: 50%;
-    background: var(--accent); border: 3px solid #fff;
-    box-shadow: 0 1px 4px rgba(74,40,115,.4); cursor: pointer; border: none;
-  }
-
+  .ctl > label { font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+  .ctl .val { font-size: 12px; font-weight: 700; color: var(--accent-deep); min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
+  input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; min-width: 80px; height: 4px; border-radius: 99px; background: var(--line); outline: none; cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); border: 3px solid #fff; box-shadow: 0 1px 4px rgba(74,40,115,.4); cursor: pointer; }
+  input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); border: none; box-shadow: 0 1px 4px rgba(74,40,115,.4); cursor: pointer; }
   .panel-actions { display: flex; gap: 8px; flex: none; }
 
-  /* ---------- Stage ---------- */
   main { flex: 1; min-height: 0; padding: 14px 20px; display: flex; }
-  .stage {
-    flex: 1; border-radius: var(--radius); background: var(--canvas-bg);
-    position: relative; overflow: hidden; display: flex;
-    align-items: center; justify-content: center; box-shadow: var(--shadow);
-  }
+  .stage { flex: 1; border-radius: var(--radius); background: var(--canvas-bg); position: relative; overflow: hidden; box-shadow: var(--shadow); }
   .stage::before {
     content: ""; position: absolute; inset: 0;
     background-image:
@@ -128,58 +73,35 @@
       linear-gradient(-45deg, rgba(255,255,255,.025) 25%, transparent 25%),
       linear-gradient(45deg, transparent 75%, rgba(255,255,255,.025) 75%),
       linear-gradient(-45deg, transparent 75%, rgba(255,255,255,.025) 75%);
-    background-size: 22px 22px;
-    background-position: 0 0, 0 11px, 11px -11px, -11px 0;
-    pointer-events: none;
+    background-size: 22px 22px; background-position: 0 0, 0 11px, 11px -11px, -11px 0; pointer-events: none;
   }
-  canvas {
-    max-width: 100%; max-height: 100%; display: none;
-    position: relative; z-index: 1; border-radius: 4px;
-    touch-action: none;
-  }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: none; z-index: 1; touch-action: none; }
   canvas.loaded { display: block; }
-  canvas.editable { cursor: crosshair; }
 
-  /* ---------- Empty / dropzone ---------- */
-  .drop {
-    position: absolute; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 16px; padding: 32px;
-    text-align: center; z-index: 2; transition: background .18s;
-  }
+  /* zoom controls */
+  .zoomctl { position: absolute; right: 12px; bottom: 12px; z-index: 4; display: none; gap: 6px; padding: 5px; background: rgba(26,19,32,.55); backdrop-filter: blur(8px); border-radius: 12px; }
+  .zoomctl.show { display: flex; }
+  .zoomctl button { appearance: none; border: none; cursor: pointer; width: 38px; height: 38px; border-radius: 9px; background: rgba(255,255,255,.08); color: #fff; font-size: 20px; font-family: var(--font); display: flex; align-items: center; justify-content: center; transition: background .15s; }
+  .zoomctl button:hover { background: rgba(255,255,255,.18); }
+  .zoomctl button:active { transform: scale(.94); }
+  .zoomctl button svg { width: 18px; height: 18px; }
+  .zoomlabel { position: absolute; left: 12px; bottom: 14px; z-index: 4; display: none; font-size: 12px; font-weight: 700; color: rgba(255,255,255,.75); background: rgba(26,19,32,.5); padding: 6px 11px; border-radius: 9px; backdrop-filter: blur(8px); font-variant-numeric: tabular-nums; }
+  .zoomlabel.show { display: block; }
+
+  .drop { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 32px; text-align: center; z-index: 5; transition: background .18s; }
   .drop.hide { display: none; }
   .drop.over { background: rgba(107,63,160,.16); }
-  .drop-ico {
-    width: 56px; height: 56px; border-radius: 16px;
-    border: 1.5px dashed rgba(255,255,255,.35);
-    display: flex; align-items: center; justify-content: center;
-  }
+  .drop-ico { width: 56px; height: 56px; border-radius: 16px; border: 1.5px dashed rgba(255,255,255,.35); display: flex; align-items: center; justify-content: center; }
   .drop-ico svg { width: 26px; height: 26px; stroke: rgba(255,255,255,.7); }
   .drop p { color: rgba(255,255,255,.78); font-size: 14px; font-weight: 500; line-height: 1.5; }
   .drop p b { color: #fff; font-weight: 700; }
-  .drop .pick {
-    margin-top: 4px; appearance: none; border: none; cursor: pointer;
-    font-family: var(--font); font-weight: 700; font-size: 14px;
-    color: var(--accent-deep); background: #fff; padding: 11px 24px; border-radius: 10px;
-    transition: transform .12s;
-  }
+  .drop .pick { margin-top: 4px; appearance: none; border: none; cursor: pointer; font-family: var(--font); font-weight: 700; font-size: 14px; color: var(--accent-deep); background: #fff; padding: 11px 24px; border-radius: 10px; transition: transform .12s; }
   .drop .pick:active { transform: scale(.96); }
 
-  /* ---------- Toolbar ---------- */
-  .toolbar {
-    flex: none; padding: 10px 20px max(18px, env(safe-area-inset-bottom));
-    display: flex; gap: 10px; align-items: center;
-  }
-  .tool-hint {
-    flex: 1; font-size: 12.5px; color: var(--ink-soft); font-weight: 500;
-    letter-spacing: .01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
+  .toolbar { flex: none; padding: 10px 20px max(18px, env(safe-area-inset-bottom)); display: flex; gap: 10px; align-items: center; }
+  .tool-hint { flex: 1; font-size: 12.5px; color: var(--ink-soft); font-weight: 500; letter-spacing: .01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tool-hint b { color: var(--accent-deep); }
-  .btn {
-    appearance: none; cursor: pointer; font-family: var(--font);
-    font-weight: 700; font-size: 14px; padding: 11px 20px; border-radius: 11px;
-    transition: transform .12s, opacity .18s, background .18s;
-    display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
-  }
+  .btn { appearance: none; cursor: pointer; font-family: var(--font); font-weight: 700; font-size: 14px; padding: 11px 20px; border-radius: 11px; transition: transform .12s, opacity .18s, background .18s; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
   .btn:active { transform: scale(.96); }
   .btn[disabled] { opacity: .4; pointer-events: none; }
   .btn svg { width: 16px; height: 16px; }
@@ -187,12 +109,7 @@
   .btn-primary { background: var(--accent); border: 1px solid var(--accent); color: #fff; }
   .btn-sm { padding: 9px 14px; font-size: 13px; }
 
-  .wip {
-    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
-    z-index: 3; font-size: 11px; font-weight: 700; letter-spacing: .08em;
-    color: rgba(255,255,255,.6); background: rgba(0,0,0,.25);
-    padding: 6px 14px; border-radius: 99px; backdrop-filter: blur(6px); display: none;
-  }
+  .wip { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 4; font-size: 11px; font-weight: 700; letter-spacing: .08em; color: rgba(255,255,255,.6); background: rgba(0,0,0,.25); padding: 6px 14px; border-radius: 99px; backdrop-filter: blur(6px); display: none; }
   .wip.show { display: block; }
 
   @media (max-width: 520px) {
@@ -222,7 +139,6 @@
     </div>
   </header>
 
-  <!-- Mosaic tool panel -->
   <div class="toolpanel" id="toolpanel">
     <div class="ctl">
       <label>粗さ</label>
@@ -242,13 +158,21 @@
     <div class="stage" id="stage">
       <div class="wip" id="wip">この機能は次のステップで実装予定</div>
       <canvas id="canvas"></canvas>
+      <div class="zoomlabel" id="zoomlabel">100%</div>
+      <div class="zoomctl" id="zoomctl">
+        <button id="zoomOut" title="縮小">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+        </button>
+        <button id="zoomFit" title="全体表示">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M21 16v3a2 2 0 0 1-2 2h-3"/></svg>
+        </button>
+        <button id="zoomIn" title="拡大">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+        </button>
+      </div>
       <div class="drop" id="drop">
         <div class="drop-ico">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="3"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <path d="M21 15l-5-5L5 21"/>
-          </svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
         </div>
         <p>写真を<b>ドラッグ＆ドロップ</b><br>または下のボタンから選択</p>
         <button class="pick" id="pickEmpty">写真を選ぶ</button>
@@ -274,228 +198,329 @@
 (() => {
   "use strict";
 
-  const stage     = document.getElementById('stage');
-  const canvas    = document.getElementById('canvas');
-  const ctx       = canvas.getContext('2d');
-  const drop      = document.getElementById('drop');
-  const wip       = document.getElementById('wip');
-  const hint      = document.getElementById('hint');
-  const fileInput = document.getElementById('fileInput');
-  const saveBtn   = document.getElementById('saveBtn');
-  const replaceBtn= document.getElementById('replaceBtn');
-  const pickEmpty = document.getElementById('pickEmpty');
-  const tabs      = document.querySelectorAll('.tab');
-  const toolpanel = document.getElementById('toolpanel');
-  const coarseness= document.getElementById('coarseness');
-  const coarsenessVal = document.getElementById('coarsenessVal');
-  const undoBtn   = document.getElementById('undoBtn');
-  const clearBtn  = document.getElementById('clearBtn');
+  const $ = id => document.getElementById(id);
+  const stage = $('stage'), canvas = $('canvas'), ctx = canvas.getContext('2d');
+  const drop = $('drop'), wip = $('wip'), hint = $('hint');
+  const fileInput = $('fileInput'), saveBtn = $('saveBtn'), replaceBtn = $('replaceBtn'), pickEmpty = $('pickEmpty');
+  const tabs = document.querySelectorAll('.tab');
+  const toolpanel = $('toolpanel'), coarseness = $('coarseness'), coarsenessVal = $('coarsenessVal');
+  const undoBtn = $('undoBtn'), clearBtn = $('clearBtn');
+  const zoomctl = $('zoomctl'), zoomlabel = $('zoomlabel');
 
   let currentTab = 'mosaic';
   let hasImage = false;
   let sourceName = 'image';
 
-  // Original image kept offscreen; edits are stored as a replayable operation list.
-  const base = document.createElement('canvas');
+  // ---- three layers ----
+  const base = document.createElement('canvas');      // original
   const bctx = base.getContext('2d');
-  let operations = [];          // [{x,y,w,h,block}]
+  const comp = document.createElement('canvas');      // base + edits (= what we save)
+  const cctx = comp.getContext('2d');
+  let operations = [];                                // [{x,y,w,h,block}] in image coords
 
-  /* ---------- Render pipeline ---------- */
-  function render() {
-    if (!hasImage) return;
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(base, 0, 0);
+  // ---- view (image px -> backing px): scale, ox, oy ----
+  let scale = 1, ox = 0, oy = 0, minScale = .05, maxScale = 16, dpr = 1;
+  const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
+
+  /* ---------- composite ---------- */
+  function buildComposite() {
+    cctx.setTransform(1,0,0,1,0,0);
+    cctx.imageSmoothingEnabled = true;
+    cctx.clearRect(0,0,comp.width,comp.height);
+    cctx.drawImage(base,0,0);
     for (const op of operations) pixelate(op);
   }
-
-  function pixelate({x, y, w, h, block}) {
-    x = Math.max(0, Math.round(x));
-    y = Math.max(0, Math.round(y));
-    w = Math.min(canvas.width  - x, Math.round(w));
-    h = Math.min(canvas.height - y, Math.round(h));
+  function pixelate({x,y,w,h,block}) {
+    x = Math.max(0, Math.round(x)); y = Math.max(0, Math.round(y));
+    w = Math.min(comp.width - x, Math.round(w)); h = Math.min(comp.height - y, Math.round(h));
     if (w <= 0 || h <= 0) return;
-    const tw = Math.max(1, Math.round(w / block));
-    const th = Math.max(1, Math.round(h / block));
-    const tmp = document.createElement('canvas');
-    tmp.width = tw; tmp.height = th;
-    const tctx = tmp.getContext('2d');
-    tctx.imageSmoothingEnabled = false;
-    tctx.drawImage(canvas, x, y, w, h, 0, 0, tw, th);   // downscale (source = current canvas)
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(tmp, 0, 0, tw, th, x, y, w, h);        // upscale back -> blocky
-    ctx.imageSmoothingEnabled = true;
+    const tw = Math.max(1, Math.round(w/block)), th = Math.max(1, Math.round(h/block));
+    const tmp = document.createElement('canvas'); tmp.width = tw; tmp.height = th;
+    const tctx = tmp.getContext('2d'); tctx.imageSmoothingEnabled = false;
+    tctx.drawImage(comp, x, y, w, h, 0, 0, tw, th);
+    cctx.imageSmoothingEnabled = false;
+    cctx.drawImage(tmp, 0, 0, tw, th, x, y, w, h);
+    cctx.imageSmoothingEnabled = true;
   }
 
-  function updateEditState() {
-    const editable = hasImage && currentTab === 'mosaic';
-    canvas.classList.toggle('editable', editable);
-    undoBtn.disabled  = !(editable && operations.length);
-    clearBtn.disabled = !(editable && operations.length);
+  /* ---------- screen render ---------- */
+  let selectRect = null; // {x,y,w,h} image coords during drag
+  function render() {
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    if (!hasImage) return;
+    ctx.imageSmoothingEnabled = scale < 1.2;
+    ctx.setTransform(scale,0,0,scale,ox,oy);
+    ctx.drawImage(comp,0,0);
+    if (selectRect) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(107,63,160,0.22)';
+      ctx.strokeStyle = '#6B3FA0';
+      ctx.lineWidth = 1.5 * dpr / scale;
+      ctx.setLineDash([8*dpr/scale, 5*dpr/scale]);
+      ctx.fillRect(selectRect.x, selectRect.y, selectRect.w, selectRect.h);
+      ctx.strokeRect(selectRect.x, selectRect.y, selectRect.w, selectRect.h);
+      ctx.restore();
+    }
+    updateZoomLabel();
+  }
+  function updateZoomLabel() {
+    const fit = fitScale();
+    const pct = Math.round((scale / fit) * 100);
+    zoomlabel.textContent = pct + '%';
   }
 
-  /* ---------- Coordinate mapping (display -> source pixels) ---------- */
-  function toSrc(e) {
+  /* ---------- view helpers ---------- */
+  function fitScale() {
+    return Math.min(canvas.width / base.width, canvas.height / base.height);
+  }
+  function fitView() {
+    const f = fitScale() * 0.985;
+    scale = f;
+    minScale = f * 0.9;
+    maxScale = Math.max(f * 20, (window.devicePixelRatio||1) * 8);
+    ox = (canvas.width  - base.width  * scale) / 2;
+    oy = (canvas.height - base.height * scale) / 2;
+    render();
+  }
+  function clampPan() {
+    const iw = base.width * scale, ih = base.height * scale;
+    if (iw <= canvas.width) ox = (canvas.width - iw) / 2;
+    else ox = clamp(ox, canvas.width - iw, 0);
+    if (ih <= canvas.height) oy = (canvas.height - ih) / 2;
+    else oy = clamp(oy, canvas.height - ih, 0);
+  }
+  function zoomAt(cx, cy, factor) {
+    const ix = (cx - ox) / scale, iy = (cy - oy) / scale;
+    scale = clamp(scale * factor, minScale, maxScale);
+    ox = cx - ix * scale; oy = cy - iy * scale;
+    clampPan(); render();
+  }
+
+  /* ---------- coordinate mapping ---------- */
+  function toCanvas(e) {
     const r = canvas.getBoundingClientRect();
-    const sx = canvas.width  / r.width;
-    const sy = canvas.height / r.height;
-    const x = (e.clientX - r.left) * sx;
-    const y = (e.clientY - r.top)  * sy;
-    return {
-      x: Math.min(Math.max(x, 0), canvas.width),
-      y: Math.min(Math.max(y, 0), canvas.height),
-      scale: sx
-    };
+    return { x: (e.clientX - r.left) * (canvas.width / r.width),
+             y: (e.clientY - r.top)  * (canvas.height / r.height) };
   }
+  function canvasToImg(c) { return { x: (c.x - ox) / scale, y: (c.y - oy) / scale }; }
 
-  /* ---------- Drag-to-select rectangle ---------- */
-  let dragging = false, startX = 0, startY = 0, snapshot = null, dispScale = 1;
+  /* ---------- pointer / gestures ---------- */
+  const pointers = new Map();   // id -> {x,y} canvas px
+  let gesture = null;           // 'select' | 'pan' | 'pinch'
+  let selStartImg = null, panLast = null, pinchPrev = null;
+  let spaceHeld = false;
+
+  function isPanInput(e) {
+    return e.button === 1 || spaceHeld || currentTab !== 'mosaic' || !canEdit();
+  }
+  function canEdit() { return hasImage && currentTab === 'mosaic'; }
 
   canvas.addEventListener('pointerdown', e => {
-    if (!hasImage || currentTab !== 'mosaic') return;
-    const p = toSrc(e);
-    dragging = true; startX = p.x; startY = p.y; dispScale = p.scale;
-    snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    if (!hasImage) return;
     canvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, toCanvas(e));
+
+    if (pointers.size === 2) {
+      // entering pinch: cancel any in-progress selection
+      gesture = 'pinch'; selectRect = null; selStartImg = null;
+      const pts = [...pointers.values()];
+      pinchPrev = { mid: mid(pts), dist: dist(pts) };
+      render();
+    } else if (pointers.size === 1) {
+      const c = toCanvas(e);
+      if (canEdit() && !isPanInput(e)) {
+        gesture = 'select';
+        selStartImg = canvasToImg(c);
+        selectRect = { x: selStartImg.x, y: selStartImg.y, w: 0, h: 0 };
+      } else {
+        gesture = 'pan'; panLast = c;
+        setCursor('grabbing');
+      }
+    }
     e.preventDefault();
   });
 
   canvas.addEventListener('pointermove', e => {
-    if (!dragging) return;
-    const p = toSrc(e);
-    ctx.putImageData(snapshot, 0, 0);
-    const x = Math.min(startX, p.x), y = Math.min(startY, p.y);
-    const w = Math.abs(p.x - startX), h = Math.abs(p.y - startY);
-    ctx.save();
-    ctx.fillStyle = 'rgba(107,63,160,0.22)';
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = '#6B3FA0';
-    ctx.lineWidth = Math.max(1, 1.5 * dispScale);
-    ctx.setLineDash([8 * dispScale, 5 * dispScale]);
-    ctx.strokeRect(x, y, w, h);
-    ctx.restore();
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, toCanvas(e));
+
+    if (gesture === 'pinch' && pointers.size >= 2) {
+      const pts = [...pointers.values()].slice(0,2);
+      const m = mid(pts), d = dist(pts);
+      if (pinchPrev) {
+        ox += m.x - pinchPrev.mid.x; oy += m.y - pinchPrev.mid.y;       // pan
+        const f = d / pinchPrev.dist;                                   // zoom about mid
+        const ix = (m.x - ox)/scale, iy = (m.y - oy)/scale;
+        scale = clamp(scale * f, minScale, maxScale);
+        ox = m.x - ix*scale; oy = m.y - iy*scale;
+      }
+      pinchPrev = { mid: m, dist: d };
+      clampPan(); render();
+    } else if (gesture === 'pan' && panLast) {
+      const c = toCanvas(e);
+      ox += c.x - panLast.x; oy += c.y - panLast.y; panLast = c;
+      clampPan(); render();
+    } else if (gesture === 'select' && selStartImg) {
+      const p = canvasToImg(toCanvas(e));
+      selectRect = { x: Math.min(selStartImg.x, p.x), y: Math.min(selStartImg.y, p.y),
+                     w: Math.abs(p.x - selStartImg.x), h: Math.abs(p.y - selStartImg.y) };
+      render();
+    }
     e.preventDefault();
   });
 
-  function endDrag(e) {
-    if (!dragging) return;
-    dragging = false;
-    const p = toSrc(e);
-    const x = Math.min(startX, p.x), y = Math.min(startY, p.y);
-    const w = Math.abs(p.x - startX), h = Math.abs(p.y - startY);
-    ctx.putImageData(snapshot, 0, 0);
-    snapshot = null;
-    // ignore tiny accidental drags (< 8px on screen)
-    if (w > 8 * dispScale && h > 8 * dispScale) {
-      operations.push({ x, y, w, h, block: parseInt(coarseness.value, 10) });
-      render();
+  function pointerEnd(e) {
+    const wasSelect = gesture === 'select';
+    pointers.delete(e.pointerId);
+
+    if (wasSelect && selectRect) {
+      // commit if larger than ~8 screen px
+      const minImg = 8 * dpr / scale;
+      if (selectRect.w > minImg && selectRect.h > minImg) {
+        operations.push({ ...selectRect, block: parseInt(coarseness.value,10) });
+        buildComposite();
+      }
+      selectRect = null; selStartImg = null;
       updateEditState();
     }
+
+    if (pointers.size === 1) {
+      // one finger left after pinch -> continue as pan
+      gesture = 'pan'; panLast = [...pointers.values()][0]; pinchPrev = null;
+    } else if (pointers.size === 0) {
+      gesture = null; panLast = null; pinchPrev = null;
+      setCursor();
+    }
+    render();
   }
-  canvas.addEventListener('pointerup', endDrag);
-  canvas.addEventListener('pointercancel', e => { dragging = false; if (snapshot) { ctx.putImageData(snapshot,0,0); snapshot=null; } });
+  canvas.addEventListener('pointerup', pointerEnd);
+  canvas.addEventListener('pointercancel', pointerEnd);
 
-  /* ---------- Coarseness ---------- */
+  const mid = p => ({ x:(p[0].x+p[1].x)/2, y:(p[0].y+p[1].y)/2 });
+  const dist = p => Math.hypot(p[0].x-p[1].x, p[0].y-p[1].y);
+
+  /* ---------- wheel zoom ---------- */
+  canvas.addEventListener('wheel', e => {
+    if (!hasImage) return;
+    e.preventDefault();
+    const c = toCanvas(e);
+    zoomAt(c.x, c.y, Math.exp(-e.deltaY * 0.0015));
+  }, { passive: false });
+
+  /* ---------- zoom buttons ---------- */
+  $('zoomIn').addEventListener('click',  () => zoomAt(canvas.width/2, canvas.height/2, 1.25));
+  $('zoomOut').addEventListener('click', () => zoomAt(canvas.width/2, canvas.height/2, 0.8));
+  $('zoomFit').addEventListener('click', fitView);
+
+  /* ---------- keyboard (space = pan) ---------- */
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space' && hasImage && e.target.tagName !== 'INPUT') {
+      spaceHeld = true; if (!gesture) setCursor('grab'); e.preventDefault();
+    }
+  });
+  window.addEventListener('keyup', e => {
+    if (e.code === 'Space') { spaceHeld = false; if (!gesture) setCursor(); }
+  });
+
+  function setCursor(force) {
+    if (force) { canvas.style.cursor = force; return; }
+    canvas.style.cursor = canEdit() ? 'crosshair' : (hasImage ? 'grab' : 'default');
+  }
+
+  /* ---------- coarseness / undo / clear ---------- */
   coarseness.addEventListener('input', () => { coarsenessVal.textContent = coarseness.value; });
+  undoBtn.addEventListener('click', () => { if (operations.length) { operations.pop(); buildComposite(); render(); updateEditState(); } });
+  clearBtn.addEventListener('click', () => { if (operations.length) { operations = []; buildComposite(); render(); updateEditState(); } });
 
-  /* ---------- Undo / Clear ---------- */
-  undoBtn.addEventListener('click', () => {
-    if (!operations.length) return;
-    operations.pop();
-    render(); updateEditState();
-  });
-  clearBtn.addEventListener('click', () => {
-    if (!operations.length) return;
-    operations = [];
-    render(); updateEditState();
-  });
+  function updateEditState() {
+    const on = canEdit() && operations.length > 0;
+    undoBtn.disabled = !on; clearBtn.disabled = !on;
+  }
 
-  /* ---------- Tabs ---------- */
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      tabs.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      currentTab = tab.dataset.tab;
-      refreshUI();
-    });
-  });
+  /* ---------- tabs ---------- */
+  tabs.forEach(tab => tab.addEventListener('click', () => {
+    tabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active'); currentTab = tab.dataset.tab; refreshUI();
+  }));
 
   function refreshUI() {
     const mosaic = currentTab === 'mosaic';
     toolpanel.classList.toggle('show', hasImage && mosaic);
     wip.classList.toggle('show', hasImage && !mosaic);
-    if (!hasImage) {
-      hint.textContent = '写真を読み込んでください';
-    } else if (mosaic) {
-      hint.innerHTML = '画像の上を<b>ドラッグ</b>してモザイクをかける範囲を指定';
-    } else {
-      hint.innerHTML = '<b>画質アップ</b>：AI 超解像は M5 で追加';
-    }
-    updateEditState();
+    zoomctl.classList.toggle('show', hasImage);
+    zoomlabel.classList.toggle('show', hasImage);
+    if (!hasImage) hint.textContent = '写真を読み込んでください';
+    else if (mosaic) hint.innerHTML = 'ドラッグで範囲指定／ホイール・ピンチで拡大、中ボタン・スペースで移動';
+    else hint.innerHTML = '<b>画質アップ</b>：AI 超解像は M5 で追加（ドラッグで移動・拡大は可能）';
+    setCursor(); updateEditState();
   }
 
-  /* ---------- Load image ---------- */
+  /* ---------- load image ---------- */
   function loadFile(file) {
     if (!file || !file.type.startsWith('image/')) return;
     sourceName = (file.name || 'image').replace(/\.[^.]+$/, '');
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      canvas.width = img.naturalWidth;  canvas.height = img.naturalHeight;
-      base.width = img.naturalWidth;    base.height = img.naturalHeight;
-      bctx.clearRect(0, 0, base.width, base.height);
-      bctx.drawImage(img, 0, 0);
+      base.width = img.naturalWidth; base.height = img.naturalHeight;
+      comp.width = img.naturalWidth; comp.height = img.naturalHeight;
+      bctx.setTransform(1,0,0,1,0,0); bctx.clearRect(0,0,base.width,base.height); bctx.drawImage(img,0,0);
       operations = [];
       URL.revokeObjectURL(url);
       hasImage = true;
-      canvas.classList.add('loaded');
-      drop.classList.add('hide');
-      saveBtn.disabled = false;
-      replaceBtn.disabled = false;
-      render();
+      canvas.classList.add('loaded'); drop.classList.add('hide');
+      saveBtn.disabled = false; replaceBtn.disabled = false;
+      resize();           // sizes backing store
+      buildComposite();
+      fitView();
       refreshUI();
     };
     img.onerror = () => { URL.revokeObjectURL(url); alert('画像の読み込みに失敗しました'); };
     img.src = url;
   }
-
   function openPicker() { fileInput.value = ''; fileInput.click(); }
   pickEmpty.addEventListener('click', openPicker);
   replaceBtn.addEventListener('click', openPicker);
   fileInput.addEventListener('change', e => loadFile(e.target.files[0]));
 
-  /* ---------- Drag & drop / paste ---------- */
-  ['dragenter','dragover'].forEach(ev =>
-    stage.addEventListener(ev, e => { e.preventDefault(); if (!hasImage) drop.classList.add('over'); }));
-  ['dragleave','drop'].forEach(ev =>
-    stage.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
-  stage.addEventListener('drop', e => {
-    if (!hasImage) { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) loadFile(f); }
-  });
-  window.addEventListener('paste', e => {
-    const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'));
-    if (item) loadFile(item.getAsFile());
+  /* ---------- drag&drop / paste ---------- */
+  ['dragenter','dragover'].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); if (!hasImage) drop.classList.add('over'); }));
+  ['dragleave','drop'].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  stage.addEventListener('drop', e => { if (!hasImage) { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) loadFile(f); } });
+  window.addEventListener('paste', e => { const it = [...(e.clipboardData?.items||[])].find(i => i.type.startsWith('image/')); if (it) loadFile(it.getAsFile()); });
+
+  /* ---------- save: Web Share (mobile) -> download (desktop) ---------- */
+  saveBtn.addEventListener('click', async () => {
+    const blob = await new Promise(res => comp.toBlob(res, 'image/png'));
+    if (!blob) return;
+    const fname = `${sourceName}_edited.png`;
+    const file = new File([blob], fname, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); return; }
+      catch (err) { if (err && err.name === 'AbortError') return; }   // user cancelled
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = fname; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
 
-  /* ---------- Save ---------- */
-  saveBtn.addEventListener('click', () => {
-    canvas.toBlob(blob => {
-      if (!blob) return;
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${sourceName}_edited.png`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    }, 'image/png');
-  });
+  /* ---------- resize ---------- */
+  function resize() {
+    dpr = window.devicePixelRatio || 1;
+    const w = stage.clientWidth, h = stage.clientHeight;
+    if (!w || !h) return;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    if (hasImage) { clampPan(); render(); }
+  }
+  const ro = new ResizeObserver(() => resize());
+  ro.observe(stage);
+  window.addEventListener('orientationchange', () => setTimeout(resize, 200));
 
   /* ---------- PWA ---------- */
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('service-worker.js').catch(() => {});
-    });
-  }
+  if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js').catch(() => {}));
 
-  refreshUI();
+  resize(); refreshUI();
 })();
 </script>
 </body>
