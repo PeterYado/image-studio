@@ -594,19 +594,136 @@
     upscaleFactor=parseInt(b.dataset.scale,10);
   }));
 
-  /* ---------- upscale button (M5a: engine bring-up only) ---------- */
-  upscaleBtn.addEventListener('click', async ()=>{
-    if(!hasImage) return;
-    const ok=await loadEngine();
-    if(!ok){
-      progressText.textContent='エンジンの読み込みに失敗しました';
-      progressSub.textContent='オンライン環境（公開URL）でお試しください';
-      setTimeout(hideProgress,2800); return;
+  /* ---------- M5b: model + tiled inference ---------- */
+  const MODEL_URL='models/realesrgan-general/model.json';
+  const MODEL_KEY='realesrgan-general';
+  const TILE=64, NATIVE_FACTOR=4, MIN_LAP=12, MAX_INPUT_DIM=1536;
+  let model=null;
+
+  async function loadModel(){
+    if(model) return model;
+    try{ model=await tf.loadGraphModel(`indexeddb://${MODEL_KEY}`); }
+    catch{
+      progressText.textContent='モデルをダウンロード中…';
+      model=await tf.loadGraphModel(MODEL_URL);
+      try{ await model.save(`indexeddb://${MODEL_KEY}`); }catch{}
     }
-    progressText.textContent='エンジン準備完了';
-    progressSub.textContent=`バックエンド: ${backend} ／ ${upscaleFactor}× ／ モデル接続は次のステップ(M5b)で実装します`;
-    setFill(1);
-    setTimeout(hideProgress,3000);
+    return model;
+  }
+
+  // lightweight pixel buffer (ported from reference Img)
+  function makeImg(w,h,data){ return {width:w,height:h,data:data||new Uint8ClampedArray(w*h*4)}; }
+  function blit(dst,dx,dy,src,x1,y1,x2,y2){
+    for(let j=0;j<y2-y1;j++){
+      const yy=dy+j, sy=y1+j;
+      if(yy<0||yy>=dst.height||sy<0||sy>=src.height) continue;
+      for(let i=0;i<x2-x1;i++){
+        const xx=dx+i, sx=x1+i;
+        if(xx<0||xx>=dst.width||sx<0||sx>=src.width) continue;
+        const di=(yy*dst.width+xx)*4, si=(sy*src.width+sx)*4;
+        dst.data[di]=src.data[si]; dst.data[di+1]=src.data[si+1]; dst.data[di+2]=src.data[si+2]; dst.data[di+3]=255;
+      }
+    }
+  }
+  function padToTile(img,ts){
+    const nw=Math.max(ts,img.width), nh=Math.max(ts,img.height);
+    if(nw===img.width&&nh===img.height) return img;
+    const o=makeImg(nw,nh); blit(o,0,0,img,0,0,img.width,img.height); return o;
+  }
+
+  async function upscaleTile(tileImg){
+    const result=tf.tidy(()=>{
+      const id=new ImageData(new Uint8ClampedArray(tileImg.data),tileImg.width,tileImg.height);
+      const t=tf.browser.fromPixels(id).div(255).toFloat().expandDims();
+      return model.predict(t);
+    });
+    const [,h,w]=result.shape;
+    const clipped=tf.tidy(()=>result.reshape([h,w,3]).mul(255).cast('int32').clipByValue(0,255));
+    result.dispose();
+    const px=await tf.browser.toPixels(clipped);
+    clipped.dispose();
+    return makeImg(w,h,px);
+  }
+
+  // tiled enlargement (ported from reference worker; no-alpha path)
+  async function enlarge(input){
+    const width=input.width, height=input.height, factor=NATIVE_FACTOR, input_size=TILE, min_lap=MIN_LAP;
+    const out=makeImg(width*factor,height*factor);
+    let num_x=1; for(;(input_size*num_x-width)/(num_x-1)<min_lap;num_x++);
+    let num_y=1; for(;(input_size*num_y-height)/(num_y-1)<min_lap;num_y++);
+    const locs_x=new Array(num_x), locs_y=new Array(num_y);
+    const pad_left=new Array(num_x), pad_top=new Array(num_y), pad_right=new Array(num_x), pad_bottom=new Array(num_y);
+    const total_lap_x=input_size*num_x-width, total_lap_y=input_size*num_y-height;
+    const base_lap_x=Math.floor(total_lap_x/(num_x-1)), base_lap_y=Math.floor(total_lap_y/(num_y-1));
+    const extra_lap_x=total_lap_x-base_lap_x*(num_x-1), extra_lap_y=total_lap_y-base_lap_y*(num_y-1);
+    locs_x[0]=0;
+    for(let i=1;i<num_x;i++) locs_x[i]=locs_x[i-1]+input_size-base_lap_x-(i<=extra_lap_x?1:0);
+    locs_y[0]=0;
+    for(let i=1;i<num_y;i++) locs_y[i]=locs_y[i-1]+input_size-base_lap_y-(i<=extra_lap_y?1:0);
+    pad_left[0]=0; pad_top[0]=0; pad_right[num_x-1]=0; pad_bottom[num_y-1]=0;
+    for(let i=1;i<num_x;i++) pad_left[i]=Math.floor((locs_x[i-1]+input_size-locs_x[i])/2);
+    for(let i=1;i<num_y;i++) pad_top[i]=Math.floor((locs_y[i-1]+input_size-locs_y[i])/2);
+    for(let i=0;i<num_x-1;i++) pad_right[i]=locs_x[i]+input_size-locs_x[i+1]-pad_left[i+1];
+    for(let i=0;i<num_y-1;i++) pad_bottom[i]=locs_y[i]+input_size-locs_y[i+1]-pad_top[i+1];
+    const total=num_x*num_y; let current=0;
+    for(let i=0;i<num_x;i++){
+      for(let j=0;j<num_y;j++){
+        const x1=locs_x[i], y1=locs_y[j];
+        const tile=makeImg(input_size,input_size);
+        blit(tile,0,0,input,x1,y1,x1+input_size,y1+input_size);
+        const scaled=await upscaleTile(tile);
+        blit(out,(x1+pad_left[i])*factor,(y1+pad_top[j])*factor,scaled,
+             pad_left[i]*factor,pad_top[j]*factor,
+             scaled.width-pad_right[i]*factor,scaled.height-pad_bottom[j]*factor);
+        current++;
+        setFill(current/total); progressText.textContent=`処理中… ${Math.round(current/total*100)}%`;
+        if(current%2===0) await new Promise(r=>setTimeout(r));
+      }
+    }
+    return out;
+  }
+
+  function applyResult(img, w0, h0){
+    const cropW=w0*NATIVE_FACTOR, cropH=h0*NATIVE_FACTOR;
+    const cropped=makeImg(cropW,cropH); blit(cropped,0,0,img,0,0,cropW,cropH);
+    const tmp=document.createElement('canvas'); tmp.width=cropW; tmp.height=cropH;
+    tmp.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(cropped.data),cropW,cropH),0,0);
+    let fw=cropW, fh=cropH;
+    if(upscaleFactor===2){ fw=Math.round(cropW/2); fh=Math.round(cropH/2); }
+    base.width=fw; base.height=fh; comp.width=fw; comp.height=fh;
+    bctx.imageSmoothingEnabled=true; bctx.imageSmoothingQuality='high';
+    bctx.clearRect(0,0,fw,fh); bctx.drawImage(tmp,0,0,cropW,cropH,0,0,fw,fh);
+    operations=[]; redoStack=[];
+    buildComposite(); resize(); fitView(); updateEditState();
+  }
+
+  /* ---------- upscale button (M5b) ---------- */
+  let upscaling=false;
+  upscaleBtn.addEventListener('click', async ()=>{
+    if(!hasImage||upscaling) return;
+    if(comp.width>MAX_INPUT_DIM||comp.height>MAX_INPUT_DIM){
+      showProgress('画像が大きすぎます',`長辺 ${MAX_INPUT_DIM}px 以下の画像でお試しください（現在 ${comp.width}×${comp.height}）`);
+      setTimeout(hideProgress,3200); return;
+    }
+    upscaling=true; upscaleBtn.disabled=true;
+    showProgress('AIエンジンを準備中…','TensorFlow.js を読み込んでいます');
+    try{
+      if(!await loadEngine()){ progressText.textContent='エンジンの読み込みに失敗'; progressSub.textContent='オンライン環境でお試しください'; setTimeout(hideProgress,2800); return; }
+      progressText.textContent='モデルを準備中…'; progressSub.textContent=`バックエンド: ${backend} ／ ${upscaleFactor}×`;
+      await loadModel();
+      const w0=comp.width, h0=comp.height;
+      const src=cctx.getImageData(0,0,w0,h0);
+      let input=makeImg(w0,h0,new Uint8ClampedArray(src.data));
+      input=padToTile(input,TILE);
+      progressText.textContent='処理中… 0%'; setFill(0);
+      const result=await enlarge(input);
+      progressText.textContent='画像を生成中…';
+      applyResult(result, w0, h0);
+      hideProgress();
+    }catch(err){
+      progressText.textContent='処理に失敗しました'; progressSub.textContent=String(err&&err.message||err).slice(0,120);
+      setTimeout(hideProgress,3200);
+    }finally{ upscaling=false; upscaleBtn.disabled=false; }
   });
 
   /* ---------- resize ---------- */

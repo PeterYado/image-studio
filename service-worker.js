@@ -2,7 +2,7 @@
    앱 셸을 캐싱해 오프라인 동작을 지원한다.
    화질업 AI 모델은 이후 단계에서 IndexedDB로 별도 캐싱한다. */
 
-const CACHE = 'image-studio-v6';
+const CACHE = 'image-studio-v7';
 const ASSETS = [
   './',
   './index.html',
