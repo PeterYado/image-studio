@@ -178,6 +178,7 @@
       <div class="seg" id="modelSeg">
         <button data-model="general" class="on">標準</button>
         <button data-model="plus">高品質</button>
+        <button data-model="anime">イラスト</button>
       </div>
     </div>
     <div class="group">
@@ -608,7 +609,8 @@
   /* ---------- M5b/M5c: model registry + tiled inference ---------- */
   const MODELS={
     general:{ url:'models/realesrgan-general/model.json', key:'realesrgan-general', tile:64,  minLap:12 },
-    plus:   { url:'models/realesrgan-x4plus/model.json',  key:'realesrgan-x4plus',  tile:128, minLap:16 }
+    plus:   { url:'models/realesrgan-x4plus/model.json',  key:'realesrgan-x4plus',  tile:128, minLap:16 },
+    anime:  { url:'models/realesrgan-anime/model.json',   key:'realesrgan-anime',   tile:128, minLap:16 }
   };
   let modelId='general';
   const NATIVE_FACTOR=4, MAX_INPUT_DIM=1536;
