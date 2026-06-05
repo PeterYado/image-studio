@@ -595,9 +595,9 @@
   }));
 
   /* ---------- M5b: model + tiled inference ---------- */
-  const MODEL_URL='models/realesrgan-general/model.json';
-  const MODEL_KEY='realesrgan-general';
-  const TILE=64, NATIVE_FACTOR=4, MIN_LAP=12, MAX_INPUT_DIM=1536;
+  const MODEL_URL='models/realesrgan-x4plus/model.json';
+  const MODEL_KEY='realesrgan-x4plus';
+  const TILE=128, NATIVE_FACTOR=4, MIN_LAP=16, MAX_INPUT_DIM=1536;
   let model=null;
 
   async function loadModel(){
