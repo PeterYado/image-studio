@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#1A1320">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Mosaic Studio</title>
+<title>Image Studio</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,7 +20,7 @@
     --ink: #1A1320;
     --ink-soft: #6B6478;
     --line: #E7E2EE;
-    --accent: #6B3FA0;        /* 노기자카 퍼플 (단색 악센트) */
+    --accent: #6B3FA0;
     --accent-deep: #4A2873;
     --accent-wash: #F0EBF7;
     --radius: 14px;
@@ -29,18 +29,12 @@
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
-  html, body {
-    height: 100%;
-    overflow: hidden;
-  }
-
+  html, body { height: 100%; overflow: hidden; }
   body {
     font-family: var(--font);
     background: var(--bg);
     color: var(--ink);
-    display: flex;
-    flex-direction: column;
+    display: flex; flex-direction: column;
     height: 100dvh;
     -webkit-font-smoothing: antialiased;
   }
@@ -49,86 +43,86 @@
   header {
     flex: none;
     padding: max(14px, env(safe-area-inset-top)) 20px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
+    display: flex; flex-direction: column; gap: 14px;
   }
-
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
+  .brand { display: flex; align-items: center; gap: 10px; }
   .brand-mark {
-    width: 26px; height: 26px;
-    border-radius: 7px;
-    background: var(--accent);
-    position: relative;
-    flex: none;
+    width: 26px; height: 26px; border-radius: 7px;
+    background: var(--accent); position: relative; flex: none;
   }
   .brand-mark::before {
-    content: "";
-    position: absolute; inset: 6px 6px auto auto;
-    width: 8px; height: 8px;
-    background: var(--bg);
-    border-radius: 2px;
+    content: ""; position: absolute; inset: 6px 6px auto auto;
+    width: 8px; height: 8px; background: var(--bg); border-radius: 2px;
     box-shadow: -10px 0 0 var(--bg), 0 10px 0 var(--bg), -10px 10px 0 rgba(247,245,250,.55);
   }
-  .brand h1 {
-    font-size: 17px;
-    font-weight: 900;
-    letter-spacing: .04em;
-  }
+  .brand h1 { font-size: 17px; font-weight: 900; letter-spacing: .04em; }
   .brand h1 span { color: var(--accent); }
 
   /* ---------- Tabs ---------- */
   .tabs {
-    display: flex;
-    gap: 4px;
-    background: var(--surface);
-    padding: 4px;
-    border-radius: 12px;
-    border: 1px solid var(--line);
+    display: flex; gap: 4px; background: var(--surface);
+    padding: 4px; border-radius: 12px; border: 1px solid var(--line);
     width: fit-content;
   }
   .tab {
-    appearance: none; border: none; cursor: pointer;
-    font-family: var(--font);
-    font-size: 14px; font-weight: 700;
-    color: var(--ink-soft);
-    background: transparent;
-    padding: 9px 22px;
-    border-radius: 9px;
-    transition: color .18s, background .18s;
-    letter-spacing: .02em;
+    appearance: none; border: none; cursor: pointer; font-family: var(--font);
+    font-size: 14px; font-weight: 700; color: var(--ink-soft);
+    background: transparent; padding: 9px 22px; border-radius: 9px;
+    transition: color .18s, background .18s; letter-spacing: .02em;
   }
-  .tab.active {
-    color: #fff;
-    background: var(--accent);
+  .tab.active { color: #fff; background: var(--accent); }
+
+  /* ---------- Tool panel ---------- */
+  .toolpanel {
+    flex: none;
+    margin: 14px 20px 0;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    display: none;
+    align-items: center;
+    gap: 18px;
+  }
+  .toolpanel.show { display: flex; }
+
+  .ctl { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+  .ctl > label {
+    font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap;
+  }
+  .ctl .val {
+    font-size: 12px; font-weight: 700; color: var(--accent-deep);
+    min-width: 30px; text-align: right; font-variant-numeric: tabular-nums;
   }
 
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    flex: 1; min-width: 80px; height: 4px; border-radius: 99px;
+    background: var(--line); outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent); border: 3px solid #fff;
+    box-shadow: 0 1px 4px rgba(74,40,115,.4); cursor: pointer;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent); border: 3px solid #fff;
+    box-shadow: 0 1px 4px rgba(74,40,115,.4); cursor: pointer; border: none;
+  }
+
+  .panel-actions { display: flex; gap: 8px; flex: none; }
+
   /* ---------- Stage ---------- */
-  main {
-    flex: 1;
-    min-height: 0;
-    padding: 16px 20px;
-    display: flex;
-  }
+  main { flex: 1; min-height: 0; padding: 14px 20px; display: flex; }
   .stage {
-    flex: 1;
-    border-radius: var(--radius);
-    background: var(--canvas-bg);
-    position: relative;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: var(--shadow);
+    flex: 1; border-radius: var(--radius); background: var(--canvas-bg);
+    position: relative; overflow: hidden; display: flex;
+    align-items: center; justify-content: center; box-shadow: var(--shadow);
   }
-  /* subtle checker so transparency / framing reads */
   .stage::before {
-    content: "";
-    position: absolute; inset: 0;
+    content: ""; position: absolute; inset: 0;
     background-image:
       linear-gradient(45deg, rgba(255,255,255,.025) 25%, transparent 25%),
       linear-gradient(-45deg, rgba(255,255,255,.025) 25%, transparent 25%),
@@ -139,31 +133,23 @@
     pointer-events: none;
   }
   canvas {
-    max-width: 100%;
-    max-height: 100%;
-    display: none;
-    position: relative;
-    z-index: 1;
-    border-radius: 4px;
+    max-width: 100%; max-height: 100%; display: none;
+    position: relative; z-index: 1; border-radius: 4px;
+    touch-action: none;
   }
   canvas.loaded { display: block; }
+  canvas.editable { cursor: crosshair; }
 
   /* ---------- Empty / dropzone ---------- */
   .drop {
-    position: absolute; inset: 0;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 16px;
-    padding: 32px;
-    text-align: center;
-    z-index: 2;
-    transition: background .18s;
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px; padding: 32px;
+    text-align: center; z-index: 2; transition: background .18s;
   }
   .drop.hide { display: none; }
   .drop.over { background: rgba(107,63,160,.16); }
   .drop-ico {
-    width: 56px; height: 56px;
-    border-radius: 16px;
+    width: 56px; height: 56px; border-radius: 16px;
     border: 1.5px dashed rgba(255,255,255,.35);
     display: flex; align-items: center; justify-content: center;
   }
@@ -171,63 +157,52 @@
   .drop p { color: rgba(255,255,255,.78); font-size: 14px; font-weight: 500; line-height: 1.5; }
   .drop p b { color: #fff; font-weight: 700; }
   .drop .pick {
-    margin-top: 4px;
-    appearance: none; border: none; cursor: pointer;
+    margin-top: 4px; appearance: none; border: none; cursor: pointer;
     font-family: var(--font); font-weight: 700; font-size: 14px;
-    color: var(--accent-deep); background: #fff;
-    padding: 11px 24px; border-radius: 10px;
+    color: var(--accent-deep); background: #fff; padding: 11px 24px; border-radius: 10px;
     transition: transform .12s;
   }
   .drop .pick:active { transform: scale(.96); }
 
   /* ---------- Toolbar ---------- */
   .toolbar {
-    flex: none;
-    padding: 0 20px max(18px, env(safe-area-inset-bottom));
-    display: flex;
-    gap: 10px;
-    align-items: center;
+    flex: none; padding: 10px 20px max(18px, env(safe-area-inset-bottom));
+    display: flex; gap: 10px; align-items: center;
   }
   .tool-hint {
-    flex: 1;
-    font-size: 12.5px;
-    color: var(--ink-soft);
-    font-weight: 500;
-    letter-spacing: .01em;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex: 1; font-size: 12.5px; color: var(--ink-soft); font-weight: 500;
+    letter-spacing: .01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .tool-hint b { color: var(--accent-deep); }
   .btn {
-    appearance: none; cursor: pointer;
-    font-family: var(--font); font-weight: 700; font-size: 14px;
-    padding: 11px 20px; border-radius: 11px;
+    appearance: none; cursor: pointer; font-family: var(--font);
+    font-weight: 700; font-size: 14px; padding: 11px 20px; border-radius: 11px;
     transition: transform .12s, opacity .18s, background .18s;
-    display: inline-flex; align-items: center; gap: 7px;
-    white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
   }
   .btn:active { transform: scale(.96); }
   .btn[disabled] { opacity: .4; pointer-events: none; }
   .btn svg { width: 16px; height: 16px; }
   .btn-ghost { background: var(--surface); border: 1px solid var(--line); color: var(--ink); }
   .btn-primary { background: var(--accent); border: 1px solid var(--accent); color: #fff; }
+  .btn-sm { padding: 9px 14px; font-size: 13px; }
 
-  /* WIP marker for tabs not yet built */
   .wip {
     position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
-    z-index: 3;
-    font-size: 11px; font-weight: 700; letter-spacing: .08em;
-    color: rgba(255,255,255,.6);
-    background: rgba(0,0,0,.25);
-    padding: 6px 14px; border-radius: 99px;
-    backdrop-filter: blur(6px);
-    display: none;
+    z-index: 3; font-size: 11px; font-weight: 700; letter-spacing: .08em;
+    color: rgba(255,255,255,.6); background: rgba(0,0,0,.25);
+    padding: 6px 14px; border-radius: 99px; backdrop-filter: blur(6px); display: none;
   }
   .wip.show { display: block; }
 
-  @media (max-width: 460px) {
+  @media (max-width: 520px) {
     .brand h1 { font-size: 16px; }
     .tab { padding: 9px 0; flex: 1; text-align: center; }
     .tabs { width: 100%; }
+    .toolpanel { gap: 12px; flex-wrap: wrap; }
+    .ctl { flex-basis: 100%; }
+    .panel-actions { flex-basis: 100%; }
+    .panel-actions .btn { flex: 1; justify-content: center; }
     .btn { padding: 11px 16px; }
     .tool-hint { display: none; }
     .toolbar { gap: 8px; }
@@ -239,13 +214,29 @@
   <header>
     <div class="brand">
       <div class="brand-mark"></div>
-      <h1>MOSAIC <span>STUDIO</span></h1>
+      <h1>IMAGE <span>STUDIO</span></h1>
     </div>
     <div class="tabs" role="tablist">
       <button class="tab active" data-tab="mosaic" role="tab">モザイク</button>
       <button class="tab" data-tab="upscale" role="tab">画質アップ</button>
     </div>
   </header>
+
+  <!-- Mosaic tool panel -->
+  <div class="toolpanel" id="toolpanel">
+    <div class="ctl">
+      <label>粗さ</label>
+      <input type="range" id="coarseness" min="6" max="80" value="22" step="1">
+      <span class="val" id="coarsenessVal">22</span>
+    </div>
+    <div class="panel-actions">
+      <button class="btn btn-ghost btn-sm" id="undoBtn" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/></svg>
+        元に戻す
+      </button>
+      <button class="btn btn-ghost btn-sm" id="clearBtn" disabled>すべて消去</button>
+    </div>
+  </div>
 
   <main>
     <div class="stage" id="stage">
@@ -294,10 +285,129 @@
   const replaceBtn= document.getElementById('replaceBtn');
   const pickEmpty = document.getElementById('pickEmpty');
   const tabs      = document.querySelectorAll('.tab');
+  const toolpanel = document.getElementById('toolpanel');
+  const coarseness= document.getElementById('coarseness');
+  const coarsenessVal = document.getElementById('coarsenessVal');
+  const undoBtn   = document.getElementById('undoBtn');
+  const clearBtn  = document.getElementById('clearBtn');
 
   let currentTab = 'mosaic';
   let hasImage = false;
   let sourceName = 'image';
+
+  // Original image kept offscreen; edits are stored as a replayable operation list.
+  const base = document.createElement('canvas');
+  const bctx = base.getContext('2d');
+  let operations = [];          // [{x,y,w,h,block}]
+
+  /* ---------- Render pipeline ---------- */
+  function render() {
+    if (!hasImage) return;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(base, 0, 0);
+    for (const op of operations) pixelate(op);
+  }
+
+  function pixelate({x, y, w, h, block}) {
+    x = Math.max(0, Math.round(x));
+    y = Math.max(0, Math.round(y));
+    w = Math.min(canvas.width  - x, Math.round(w));
+    h = Math.min(canvas.height - y, Math.round(h));
+    if (w <= 0 || h <= 0) return;
+    const tw = Math.max(1, Math.round(w / block));
+    const th = Math.max(1, Math.round(h / block));
+    const tmp = document.createElement('canvas');
+    tmp.width = tw; tmp.height = th;
+    const tctx = tmp.getContext('2d');
+    tctx.imageSmoothingEnabled = false;
+    tctx.drawImage(canvas, x, y, w, h, 0, 0, tw, th);   // downscale (source = current canvas)
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(tmp, 0, 0, tw, th, x, y, w, h);        // upscale back -> blocky
+    ctx.imageSmoothingEnabled = true;
+  }
+
+  function updateEditState() {
+    const editable = hasImage && currentTab === 'mosaic';
+    canvas.classList.toggle('editable', editable);
+    undoBtn.disabled  = !(editable && operations.length);
+    clearBtn.disabled = !(editable && operations.length);
+  }
+
+  /* ---------- Coordinate mapping (display -> source pixels) ---------- */
+  function toSrc(e) {
+    const r = canvas.getBoundingClientRect();
+    const sx = canvas.width  / r.width;
+    const sy = canvas.height / r.height;
+    const x = (e.clientX - r.left) * sx;
+    const y = (e.clientY - r.top)  * sy;
+    return {
+      x: Math.min(Math.max(x, 0), canvas.width),
+      y: Math.min(Math.max(y, 0), canvas.height),
+      scale: sx
+    };
+  }
+
+  /* ---------- Drag-to-select rectangle ---------- */
+  let dragging = false, startX = 0, startY = 0, snapshot = null, dispScale = 1;
+
+  canvas.addEventListener('pointerdown', e => {
+    if (!hasImage || currentTab !== 'mosaic') return;
+    const p = toSrc(e);
+    dragging = true; startX = p.x; startY = p.y; dispScale = p.scale;
+    snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    canvas.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const p = toSrc(e);
+    ctx.putImageData(snapshot, 0, 0);
+    const x = Math.min(startX, p.x), y = Math.min(startY, p.y);
+    const w = Math.abs(p.x - startX), h = Math.abs(p.y - startY);
+    ctx.save();
+    ctx.fillStyle = 'rgba(107,63,160,0.22)';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#6B3FA0';
+    ctx.lineWidth = Math.max(1, 1.5 * dispScale);
+    ctx.setLineDash([8 * dispScale, 5 * dispScale]);
+    ctx.strokeRect(x, y, w, h);
+    ctx.restore();
+    e.preventDefault();
+  });
+
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    const p = toSrc(e);
+    const x = Math.min(startX, p.x), y = Math.min(startY, p.y);
+    const w = Math.abs(p.x - startX), h = Math.abs(p.y - startY);
+    ctx.putImageData(snapshot, 0, 0);
+    snapshot = null;
+    // ignore tiny accidental drags (< 8px on screen)
+    if (w > 8 * dispScale && h > 8 * dispScale) {
+      operations.push({ x, y, w, h, block: parseInt(coarseness.value, 10) });
+      render();
+      updateEditState();
+    }
+  }
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', e => { dragging = false; if (snapshot) { ctx.putImageData(snapshot,0,0); snapshot=null; } });
+
+  /* ---------- Coarseness ---------- */
+  coarseness.addEventListener('input', () => { coarsenessVal.textContent = coarseness.value; });
+
+  /* ---------- Undo / Clear ---------- */
+  undoBtn.addEventListener('click', () => {
+    if (!operations.length) return;
+    operations.pop();
+    render(); updateEditState();
+  });
+  clearBtn.addEventListener('click', () => {
+    if (!operations.length) return;
+    operations = [];
+    render(); updateEditState();
+  });
 
   /* ---------- Tabs ---------- */
   tabs.forEach(tab => {
@@ -310,15 +420,17 @@
   });
 
   function refreshUI() {
-    // M1: 両タブとも「読み込み / 保存」のみ実装。各タブ固有の道具は次ステップ。
-    wip.classList.toggle('show', hasImage);
+    const mosaic = currentTab === 'mosaic';
+    toolpanel.classList.toggle('show', hasImage && mosaic);
+    wip.classList.toggle('show', hasImage && !mosaic);
     if (!hasImage) {
       hint.textContent = '写真を読み込んでください';
-    } else if (currentTab === 'mosaic') {
-      hint.innerHTML = '<b>モザイク</b>：範囲指定とぼかしは M2 以降で追加';
+    } else if (mosaic) {
+      hint.innerHTML = '画像の上を<b>ドラッグ</b>してモザイクをかける範囲を指定';
     } else {
       hint.innerHTML = '<b>画質アップ</b>：AI 超解像は M5 で追加';
     }
+    updateEditState();
   }
 
   /* ---------- Load image ---------- */
@@ -328,38 +440,37 @@
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
+      canvas.width = img.naturalWidth;  canvas.height = img.naturalHeight;
+      base.width = img.naturalWidth;    base.height = img.naturalHeight;
+      bctx.clearRect(0, 0, base.width, base.height);
+      bctx.drawImage(img, 0, 0);
+      operations = [];
       URL.revokeObjectURL(url);
       hasImage = true;
       canvas.classList.add('loaded');
       drop.classList.add('hide');
       saveBtn.disabled = false;
       replaceBtn.disabled = false;
+      render();
       refreshUI();
     };
     img.onerror = () => { URL.revokeObjectURL(url); alert('画像の読み込みに失敗しました'); };
     img.src = url;
   }
 
-  /* ---------- File picker ---------- */
   function openPicker() { fileInput.value = ''; fileInput.click(); }
   pickEmpty.addEventListener('click', openPicker);
   replaceBtn.addEventListener('click', openPicker);
   fileInput.addEventListener('change', e => loadFile(e.target.files[0]));
 
-  /* ---------- Drag & drop (desktop) ---------- */
+  /* ---------- Drag & drop / paste ---------- */
   ['dragenter','dragover'].forEach(ev =>
     stage.addEventListener(ev, e => { e.preventDefault(); if (!hasImage) drop.classList.add('over'); }));
   ['dragleave','drop'].forEach(ev =>
     stage.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
   stage.addEventListener('drop', e => {
-    const file = e.dataTransfer && e.dataTransfer.files[0];
-    if (file) loadFile(file);
+    if (!hasImage) { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) loadFile(f); }
   });
-  // paste from clipboard
   window.addEventListener('paste', e => {
     const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'));
     if (item) loadFile(item.getAsFile());
@@ -377,7 +488,7 @@
     }, 'image/png');
   });
 
-  /* ---------- PWA service worker (ignored silently if unavailable) ---------- */
+  /* ---------- PWA ---------- */
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('service-worker.js').catch(() => {});

@@ -1,7 +1,7 @@
 {
-  "name": "Mosaic Studio",
-  "short_name": "Mosaic",
-  "description": "ブラウザ内で完結する写真モザイク＆AI画質アップ。広告なし・サーバーなし。",
+  "name": "Image Studio",
+  "short_name": "Image Studio",
+  "description": "ブラウザ内で完結する画像ツール。モザイク・AI画質アップ・形式変換。広告なし・サーバーなし。",
   "lang": "ja",
   "start_url": "./index.html",
   "scope": "./",
