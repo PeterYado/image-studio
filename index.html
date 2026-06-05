@@ -229,8 +229,14 @@
       lctx.imageSmoothingEnabled=false;
       lctx.drawImage(tmp,0,0,tw,th,0,0,comp.width,comp.height);
     }else if(effectType==='blur'){
-      lctx.filter=`blur(${Math.max(2,strength*0.6)}px)`;
-      lctx.drawImage(comp,0,0); lctx.filter='none';
+      // iOS Safari ignores ctx.filter='blur()', so use downscale -> smooth upscale.
+      const f=Math.max(2,strength*0.6);
+      const tw=Math.max(1,Math.round(comp.width/f)), th=Math.max(1,Math.round(comp.height/f));
+      const tmp=document.createElement('canvas'); tmp.width=tw; tmp.height=th;
+      const tctx=tmp.getContext('2d'); tctx.imageSmoothingEnabled=true; tctx.imageSmoothingQuality='high';
+      tctx.drawImage(comp,0,0,comp.width,comp.height,0,0,tw,th);
+      lctx.imageSmoothingEnabled=true; lctx.imageSmoothingQuality='high';
+      lctx.drawImage(tmp,0,0,tw,th,0,0,comp.width,comp.height);
     }else{ // box: solid average-ish color -> use heavy downscale to 1px then fill
       const tmp=document.createElement('canvas'); tmp.width=1; tmp.height=1;
       tmp.getContext('2d').drawImage(comp,0,0,comp.width,comp.height,0,0,1,1);
