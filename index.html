@@ -50,6 +50,30 @@
   input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--accent);border:none;box-shadow:0 1px 4px rgba(74,40,115,.4);cursor:pointer;}
   .panel-actions{display:flex;gap:8px;}
 
+  /* upscale panel */
+  .uppanel{flex:none;margin:14px 20px 0;padding:12px 16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;display:none;align-items:center;gap:14px;flex-wrap:wrap;}
+  .uppanel.show{display:flex;}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:6px 11px;border-radius:99px;}
+  .badge.gpu{background:#E7F8EE;color:#1B7A43;}
+  .badge.webgl{background:#FFF4E0;color:#9A6700;}
+  .badge.none{background:#FCE8E8;color:#B42318;}
+  .badge .dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+  .up-actions{margin-left:auto;display:flex;gap:8px;}
+
+  /* progress overlay */
+  .progress{position:absolute;inset:0;z-index:6;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(26,19,32,.6);backdrop-filter:blur(4px);padding:32px;text-align:center;}
+  .progress.show{display:flex;}
+  .progress .ptext{color:#fff;font-size:15px;font-weight:700;letter-spacing:.02em;}
+  .progress .pbar{width:min(280px,70%);height:6px;border-radius:99px;background:rgba(255,255,255,.18);overflow:hidden;}
+  .progress .pfill{height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .25s;}
+  .progress .psub{color:rgba(255,255,255,.65);font-size:12px;line-height:1.5;max-width:320px;}
+
+  @media (max-width:640px){
+    .uppanel{gap:10px;}
+    .up-actions{margin-left:0;flex:1;}
+    .up-actions .btn{flex:1;justify-content:center;}
+  }
+
   main{flex:1;min-height:0;padding:14px 20px;display:flex;}
   .stage{flex:1;border-radius:var(--radius);background:var(--canvas-bg);position:relative;overflow:hidden;box-shadow:var(--shadow);}
   .stage::before{content:"";position:absolute;inset:0;background-image:linear-gradient(45deg,rgba(255,255,255,.025) 25%,transparent 25%),linear-gradient(-45deg,rgba(255,255,255,.025) 25%,transparent 25%),linear-gradient(45deg,transparent 75%,rgba(255,255,255,.025) 75%),linear-gradient(-45deg,transparent 75%,rgba(255,255,255,.025) 75%);background-size:22px 22px;background-position:0 0,0 11px,11px -11px,-11px 0;pointer-events:none;}
@@ -148,9 +172,28 @@
     </div>
   </div>
 
+  <div class="uppanel" id="uppanel">
+    <div class="group">
+      <span class="group-label">倍率</span>
+      <div class="seg" id="scaleSeg">
+        <button data-scale="2" class="on">2×</button>
+        <button data-scale="4">4×</button>
+      </div>
+    </div>
+    <span class="badge none" id="accelBadge"><span class="dot"></span><span id="accelText">確認中…</span></span>
+    <div class="up-actions">
+      <button class="btn btn-primary btn-sm" id="upscaleBtn">画質を上げる</button>
+    </div>
+  </div>
+
   <main>
     <div class="stage" id="stage">
       <div class="wip" id="wip">この機能は次のステップで実装予定</div>
+      <div class="progress" id="progress">
+        <div class="ptext" id="progressText">準備中…</div>
+        <div class="pbar"><div class="pfill" id="progressFill"></div></div>
+        <div class="psub" id="progressSub"></div>
+      </div>
       <canvas id="canvas"></canvas>
       <div class="zoomlabel" id="zoomlabel">100%</div>
       <div class="zoomctl" id="zoomctl">
@@ -192,9 +235,12 @@
   const strength=$('strength'), strengthVal=$('strengthVal'), strengthLabel=$('strengthLabel');
   const brushCtl=$('brushCtl'), brushSize=$('brushSize'), brushSizeVal=$('brushSizeVal');
   const undoBtn=$('undoBtn'), clearBtn=$('clearBtn'), zoomctl=$('zoomctl'), zoomlabel=$('zoomlabel');
+  const uppanel=$('uppanel'), scaleSeg=$('scaleSeg'), accelBadge=$('accelBadge'), accelText=$('accelText'), upscaleBtn=$('upscaleBtn');
+  const progress=$('progress'), progressText=$('progressText'), progressFill=$('progressFill'), progressSub=$('progressSub');
 
   let currentTab='mosaic', hasImage=false, sourceName='image';
   let effect='pixelate', mode='rect';
+  let upscaleFactor=2, accelTier=null, engineState='idle', backend=null;
 
   // layers
   const base=document.createElement('canvas'), bctx=base.getContext('2d');
@@ -440,16 +486,19 @@
 
   /* ---------- tabs ---------- */
   tabs.forEach(t=>t.addEventListener('click',()=>{ tabs.forEach(x=>x.classList.remove('active')); t.classList.add('active'); currentTab=t.dataset.tab; refreshUI(); }));
+  let accelChecked=false;
   function refreshUI(){
     const m=currentTab==='mosaic';
     toolpanel.classList.toggle('show',hasImage&&m);
-    wip.classList.toggle('show',hasImage&&!m);
+    uppanel.classList.toggle('show',hasImage&&!m);
+    wip.classList.remove('show');
     zoomctl.classList.toggle('show',hasImage);
     zoomlabel.classList.toggle('show',hasImage);
     if(!hasImage) hint.textContent='写真を読み込んでください';
     else if(m) hint.innerHTML='ドラッグで範囲指定／ホイール・ピンチで拡大、中ボタン・スペースで移動';
-    else hint.innerHTML='<b>画質アップ</b>：AI 超解像は M5 で追加（移動・拡大は可能）';
+    else hint.innerHTML='倍率を選んで「画質を上げる」（移動・拡大も可能）';
     setCursor(); updateEditState();
+    if(hasImage&&!m&&!accelChecked){ accelChecked=true; detectAccel().then(setAccelBadge); }
   }
 
   /* ---------- load ---------- */
@@ -491,6 +540,74 @@
     setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   }
   saveBtn.addEventListener('click',doSave);
+
+  /* ---------- upscale: accel detection ---------- */
+  async function detectAccel(){
+    if(navigator.gpu){
+      try{ const a=await navigator.gpu.requestAdapter(); if(a) return 'webgpu'; }catch{}
+    }
+    try{ const c=document.createElement('canvas'); if(c.getContext('webgl2')||c.getContext('webgl')) return 'webgl'; }catch{}
+    return 'none';
+  }
+  function setAccelBadge(tier){
+    accelTier=tier; accelBadge.classList.remove('gpu','webgl','none');
+    if(tier==='webgpu'){ accelBadge.classList.add('gpu'); accelText.textContent='WebGPU 加速'; }
+    else if(tier==='webgl'){ accelBadge.classList.add('webgl'); accelText.textContent='WebGL 加速'; }
+    else{ accelBadge.classList.add('none'); accelText.textContent='GPU非対応'; }
+  }
+
+  /* ---------- progress overlay ---------- */
+  function showProgress(text,sub){ progress.classList.add('show'); progressText.textContent=text||''; progressSub.textContent=sub||''; setFill(0); }
+  function setFill(p){ progressFill.style.width=Math.round(p*100)+'%'; }
+  function hideProgress(){ progress.classList.remove('show'); }
+
+  /* ---------- AI engine loader (TensorFlow.js) ---------- */
+  function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('script load failed: '+src)); document.head.appendChild(s); }); }
+  async function loadEngine(){
+    if(engineState==='ready') return true;
+    engineState='loading';
+    showProgress('AIエンジンを準備中…','TensorFlow.js を読み込んでいます');
+    try{
+      const V='4.22.0';
+      if(!window.tf){ await loadScript(`https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@${V}/dist/tf.min.js`); }
+      setFill(0.5);
+      backend=null;
+      if(navigator.gpu){
+        try{
+          await loadScript(`https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@${V}/dist/tf-backend-webgpu.min.js`);
+          await tf.setBackend('webgpu'); await tf.ready(); backend='webgpu';
+        }catch{ backend=null; }
+      }
+      if(!backend){
+        try{ await tf.setBackend('webgl'); await tf.ready(); backend='webgl'; }
+        catch{ try{ await tf.setBackend('cpu'); await tf.ready(); backend='cpu'; }catch{} }
+      }
+      setFill(1);
+      engineState = backend ? 'ready' : 'failed';
+      return engineState==='ready';
+    }catch(e){ engineState='failed'; return false; }
+  }
+
+  /* ---------- scale selector ---------- */
+  scaleSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+    scaleSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    upscaleFactor=parseInt(b.dataset.scale,10);
+  }));
+
+  /* ---------- upscale button (M5a: engine bring-up only) ---------- */
+  upscaleBtn.addEventListener('click', async ()=>{
+    if(!hasImage) return;
+    const ok=await loadEngine();
+    if(!ok){
+      progressText.textContent='エンジンの読み込みに失敗しました';
+      progressSub.textContent='オンライン環境（公開URL）でお試しください';
+      setTimeout(hideProgress,2800); return;
+    }
+    progressText.textContent='エンジン準備完了';
+    progressSub.textContent=`バックエンド: ${backend} ／ ${upscaleFactor}× ／ モデル接続は次のステップ(M5b)で実装します`;
+    setFill(1);
+    setTimeout(hideProgress,3000);
+  });
 
   /* ---------- resize ---------- */
   function resize(){
