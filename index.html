@@ -134,6 +134,7 @@
     <div class="tabs" role="tablist">
       <button class="tab active" data-tab="mosaic" role="tab">モザイク</button>
       <button class="tab" data-tab="upscale" role="tab">画質アップ</button>
+      <button class="tab" data-tab="convert" role="tab">形式変換</button>
     </div>
   </header>
 
@@ -194,6 +195,24 @@
     </div>
   </div>
 
+  <div class="uppanel" id="convpanel">
+    <div class="group">
+      <span class="group-label">形式</span>
+      <div class="seg" id="formatSeg">
+        <button data-fmt="jpg" class="on">JPG</button>
+        <button data-fmt="png">PNG</button>
+      </div>
+    </div>
+    <div class="ctl" id="qualityCtl">
+      <label>画質</label>
+      <input type="range" id="quality" min="50" max="100" value="92" step="1">
+      <span class="val" id="qualityVal">92</span>
+    </div>
+    <div class="up-actions">
+      <button class="btn btn-primary btn-sm" id="convertBtn">変換して保存</button>
+    </div>
+  </div>
+
   <main>
     <div class="stage" id="stage">
       <div class="wip" id="wip">この機能は次のステップで実装予定</div>
@@ -245,10 +264,12 @@
   const undoBtn=$('undoBtn'), clearBtn=$('clearBtn'), zoomctl=$('zoomctl'), zoomlabel=$('zoomlabel');
   const uppanel=$('uppanel'), scaleSeg=$('scaleSeg'), modelSeg=$('modelSeg'), accelBadge=$('accelBadge'), accelText=$('accelText'), upscaleBtn=$('upscaleBtn');
   const progress=$('progress'), progressText=$('progressText'), progressFill=$('progressFill'), progressSub=$('progressSub');
+  const convpanel=$('convpanel'), formatSeg=$('formatSeg'), qualityCtl=$('qualityCtl'), quality=$('quality'), qualityVal=$('qualityVal'), convertBtn=$('convertBtn');
 
   let currentTab='mosaic', hasImage=false, sourceName='image';
   let effect='pixelate', mode='rect';
   let upscaleFactor=2, accelTier=null, engineState='idle', backend=null;
+  let outFormat='jpg';
 
   // layers
   const base=document.createElement('canvas'), bctx=base.getContext('2d');
@@ -496,17 +517,19 @@
   tabs.forEach(t=>t.addEventListener('click',()=>{ tabs.forEach(x=>x.classList.remove('active')); t.classList.add('active'); currentTab=t.dataset.tab; refreshUI(); }));
   let accelChecked=false;
   function refreshUI(){
-    const m=currentTab==='mosaic';
+    const m=currentTab==='mosaic', up=currentTab==='upscale', cv=currentTab==='convert';
     toolpanel.classList.toggle('show',hasImage&&m);
-    uppanel.classList.toggle('show',hasImage&&!m);
+    uppanel.classList.toggle('show',hasImage&&up);
+    convpanel.classList.toggle('show',hasImage&&cv);
     wip.classList.remove('show');
     zoomctl.classList.toggle('show',hasImage);
     zoomlabel.classList.toggle('show',hasImage);
     if(!hasImage) hint.textContent='写真を読み込んでください';
     else if(m) hint.innerHTML='ドラッグで範囲指定／ホイール・ピンチで拡大、中ボタン・スペースで移動';
-    else hint.innerHTML='倍率を選んで「画質を上げる」（移動・拡大も可能）';
+    else if(up) hint.innerHTML='倍率を選んで「画質を上げる」（移動・拡大も可能）';
+    else hint.innerHTML='形式を選んで「変換して保存」（現在の画像をそのまま変換します）';
     setCursor(); updateEditState();
-    if(hasImage&&!m&&!accelChecked){ accelChecked=true; detectAccel().then(setAccelBadge); }
+    if(hasImage&&up&&!accelChecked){ accelChecked=true; detectAccel().then(setAccelBadge); }
   }
 
   /* ---------- load ---------- */
@@ -548,6 +571,37 @@
     setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   }
   saveBtn.addEventListener('click',doSave);
+
+  /* ---------- format convert ---------- */
+  formatSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+    formatSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    outFormat=b.dataset.fmt;
+    qualityCtl.style.display = outFormat==='jpg' ? 'flex' : 'none';
+  }));
+  quality.addEventListener('input',()=>qualityVal.textContent=quality.value);
+
+  async function doConvert(){
+    if(!hasImage) return;
+    let out=comp;
+    // JPG has no alpha: flatten onto white so transparent areas don't turn black
+    if(outFormat==='jpg'){
+      const flat=document.createElement('canvas'); flat.width=comp.width; flat.height=comp.height;
+      const fx=flat.getContext('2d'); fx.fillStyle='#fff'; fx.fillRect(0,0,flat.width,flat.height); fx.drawImage(comp,0,0);
+      out=flat;
+    }
+    const mime = outFormat==='jpg' ? 'image/jpeg' : 'image/png';
+    const q = outFormat==='jpg' ? parseInt(quality.value,10)/100 : undefined;
+    const blob=await new Promise(res=>out.toBlob(res,mime,q)); if(!blob) return;
+    const ext = outFormat==='jpg' ? 'jpg' : 'png';
+    const fname=`${sourceName}.${ext}`;
+    const file=new File([blob],fname,{type:mime});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file]}); return; }catch(err){ if(err&&err.name==='AbortError') return; }
+    }
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  }
+  convertBtn.addEventListener('click',doConvert);
 
   /* ---------- upscale: accel detection ---------- */
   async function detectAccel(){
