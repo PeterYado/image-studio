@@ -727,11 +727,14 @@
   window.addEventListener('paste',e=>{ const it=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/')); if(it) loadFile(it.getAsFile()); });
 
   /* ---------- save ---------- */
+  // Only route to the native share sheet on mobile (where it offers "save to Photos").
+  // Desktop browsers now support Web Share too, but there a direct download is expected.
+  const useShareSheet=(file)=> window.matchMedia('(max-width:640px)').matches && navigator.canShare && navigator.canShare({files:[file]});
   async function doSave(){
     if(!hasImage) return;
     const blob=await new Promise(res=>comp.toBlob(res,'image/png')); if(!blob) return;
     const fname=`${sourceName}_edited.png`, file=new File([blob],fname,{type:'image/png'});
-    if(navigator.canShare&&navigator.canShare({files:[file]})){
+    if(useShareSheet(file)){
       try{ await navigator.share({files:[file]}); return; }catch(err){ if(err&&err.name==='AbortError') return; }
     }
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
@@ -762,7 +765,7 @@
     const ext = outFormat==='jpg' ? 'jpg' : 'png';
     const fname=`${sourceName}.${ext}`;
     const file=new File([blob],fname,{type:mime});
-    if(navigator.canShare&&navigator.canShare({files:[file]})){
+    if(useShareSheet(file)){
       try{ await navigator.share({files:[file]}); return; }catch(err){ if(err&&err.name==='AbortError') return; }
     }
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
