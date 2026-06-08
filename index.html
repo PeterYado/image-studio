@@ -56,10 +56,26 @@
   /* emoji sticker panel */
   .emoji-panel{display:none;align-items:center;gap:10px;}
   .emoji-panel.show{display:flex;}
-  .emoji-grid{display:flex;gap:4px;flex-wrap:wrap;}
-  .emoji-grid button{appearance:none;border:1px solid var(--line);background:var(--bg);cursor:pointer;width:38px;height:38px;border-radius:9px;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;transition:transform .1s,background .15s;}
-  .emoji-grid button:hover{background:var(--accent-wash);}
-  .emoji-grid button:active{transform:scale(.9);}
+  .stamp-trigger{appearance:none;border:1px solid var(--line);background:var(--bg);cursor:pointer;width:42px;height:42px;border-radius:10px;font-size:24px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;transition:transform .1s,background .15s;}
+  .stamp-trigger:hover{background:var(--accent-wash);}
+  .stamp-trigger:active{transform:scale(.92);}
+
+  /* emoji picker (popover on desktop, bottom sheet on mobile) */
+  .emoji-picker-backdrop{position:fixed;inset:0;z-index:40;display:none;}
+  .emoji-picker-backdrop.show{display:block;}
+  .emoji-picker{position:fixed;z-index:41;display:none;flex-direction:column;width:368px;max-height:340px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(26,19,32,.25);overflow:hidden;}
+  .emoji-picker.show{display:flex;}
+  .emoji-cats{display:flex;gap:2px;padding:8px;border-bottom:1px solid var(--line);overflow-x:auto;flex:none;}
+  .emoji-cats button{appearance:none;border:none;background:transparent;font-size:20px;width:36px;height:36px;border-radius:8px;cursor:pointer;flex:none;line-height:1;}
+  .emoji-cats button.on{background:var(--accent-wash);}
+  .emoji-scroll{overflow-y:auto;padding:8px;display:grid;grid-template-columns:repeat(8,1fr);gap:2px;min-height:80px;}
+  .emoji-scroll button{appearance:none;border:none;background:transparent;font-size:24px;width:100%;aspect-ratio:1;border-radius:8px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;}
+  .emoji-scroll button:hover{background:var(--accent-wash);}
+  .emoji-scroll .empty{grid-column:1/-1;color:var(--ink-soft);font-size:13px;text-align:center;padding:24px 8px;}
+  @media(max-width:640px){
+    .emoji-picker{left:0!important;right:0!important;bottom:0!important;top:auto!important;width:auto;max-height:48vh;border-radius:16px 16px 0 0;border-bottom:none;}
+    .emoji-scroll{grid-template-columns:repeat(6,1fr);}
+  }
 
   /* upscale panel */
   .uppanel{flex:none;margin:14px 20px 0;padding:12px 16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;display:none;align-items:center;gap:14px;flex-wrap:wrap;}
@@ -178,7 +194,7 @@
     </div>
     <div class="emoji-panel" id="emojiPanel">
       <span class="group-label">スタンプ</span>
-      <div class="emoji-grid" id="emojiGrid"></div>
+      <button type="button" class="stamp-trigger" id="stampTrigger">🙂</button>
     </div>
     <div class="panel-actions">
       <button class="btn btn-ghost btn-sm" id="undoBtn" disabled>
@@ -266,6 +282,12 @@
 
   <input type="file" id="fileInput" accept="image/*" hidden>
 
+  <div class="emoji-picker-backdrop" id="pickerBackdrop"></div>
+  <div class="emoji-picker" id="emojiPicker">
+    <div class="emoji-cats" id="emojiCats"></div>
+    <div class="emoji-scroll" id="emojiScroll"></div>
+  </div>
+
 <script>
 (() => {
   "use strict";
@@ -275,7 +297,7 @@
   const fileInput=$('fileInput'), saveBtn=$('saveBtn'), replaceBtn=$('replaceBtn'), pickEmpty=$('pickEmpty');
   const tabs=document.querySelectorAll('.tab');
   const toolpanel=$('toolpanel'), effectSeg=$('effectSeg'), modeSeg=$('modeSeg');
-  const modeGroup=$('modeGroup'), strengthCtl=$('strengthCtl'), emojiPanel=$('emojiPanel'), emojiGrid=$('emojiGrid');
+  const modeGroup=$('modeGroup'), strengthCtl=$('strengthCtl'), emojiPanel=$('emojiPanel');
   const strength=$('strength'), strengthVal=$('strengthVal'), strengthLabel=$('strengthLabel');
   const brushCtl=$('brushCtl'), brushSize=$('brushSize'), brushSizeVal=$('brushSizeVal');
   const undoBtn=$('undoBtn'), clearBtn=$('clearBtn'), zoomctl=$('zoomctl'), zoomlabel=$('zoomlabel');
@@ -565,8 +587,51 @@
   brushSize.addEventListener('input',()=>brushSizeVal.textContent=brushSize.value);
 
   /* ---------- sticker tool ---------- */
-  const EMOJIS=['😀','🙂','😎','😅','🥰','😆','😳','🙈','🐱','🐶','🌸','⭐','❤️','🔥','👍','❓'];
-  EMOJIS.forEach(em=>{ const b=document.createElement('button'); b.type='button'; b.textContent=em; b.addEventListener('click',()=>{ if(hasImage) addSticker(em); }); emojiGrid.appendChild(b); });
+  const stampTrigger=$('stampTrigger'), pickerBackdrop=$('pickerBackdrop'), emojiPicker=$('emojiPicker'), emojiCats=$('emojiCats'), emojiScroll=$('emojiScroll');
+  const erange=(a,b)=>{ const o=[]; for(let c=a;c<=b;c++) o.push(String.fromCodePoint(c)); return o; };
+  const EMOJI_CATS=[
+    {id:'recent', icon:'🕘'},
+    {id:'smiley', icon:'😀', emojis: erange(0x1F600,0x1F64F)},
+    {id:'gesture',icon:'👍', emojis: ['👍','👎','👏','🙌','🤝','💪','🙏','✌️','🤞','🤟','🤘','👌','🤌','👈','👉','👆','👇','✋','🤚','🖐️','🖖','👋','🤙','💅','🦾'] },
+    {id:'animal', icon:'🐶', emojis: erange(0x1F400,0x1F43E).concat(['🐰','🐱','🐶','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵']) },
+    {id:'food',   icon:'🍔', emojis: erange(0x1F345,0x1F37F) },
+    {id:'heart',  icon:'❤️', emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💕','💞','💓','💗','💖','💘','💝','💟','❣️','💔','♥️','💌'] },
+    {id:'symbol', icon:'⭐', emojis: ['⭐','🌟','✨','💫','🔥','💥','💢','💦','💨','💤','❓','❗','‼️','⁉️','⭕','❌','✅','☑️','✔️','🚫','💯','♨️','⚠️','🈲','🆖','🆗','🔞','🎉','🎊','👑','💎','🔔'] }
+  ];
+  let recentEmojis=[], activeCat='smiley';
+
+  // local store (IndexedDB) for recents — stays on-device, no network
+  function idbReq(){ return indexedDB.open('imagestudio-kv',1); }
+  function idbGet(key){ return new Promise(res=>{ try{ const r=idbReq(); r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>{ try{ const g=r.result.transaction('kv','readonly').objectStore('kv').get(key); g.onsuccess=()=>res(g.result); g.onerror=()=>res(null);}catch{res(null);} }; r.onerror=()=>res(null); }catch{res(null);} }); }
+  function idbSet(key,val){ try{ const r=idbReq(); r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>{ try{ r.result.transaction('kv','readwrite').objectStore('kv').put(val,key);}catch{} }; }catch{} }
+  idbGet('recent-emojis').then(v=>{ if(Array.isArray(v)) recentEmojis=v; });
+
+  function pushRecent(em){ recentEmojis=[em,...recentEmojis.filter(x=>x!==em)].slice(0,24); idbSet('recent-emojis',recentEmojis); }
+
+  function renderCats(){
+    emojiCats.innerHTML='';
+    EMOJI_CATS.forEach(cat=>{ const b=document.createElement('button'); b.type='button'; b.textContent=cat.icon; b.classList.toggle('on',cat.id===activeCat);
+      b.addEventListener('click',()=>{ activeCat=cat.id; renderCats(); renderGrid(); }); emojiCats.appendChild(b); });
+  }
+  function renderGrid(){
+    emojiScroll.innerHTML=''; emojiScroll.scrollTop=0;
+    const cat=EMOJI_CATS.find(c=>c.id===activeCat);
+    const list = activeCat==='recent' ? recentEmojis : cat.emojis;
+    if(!list || !list.length){ const d=document.createElement('div'); d.className='empty'; d.textContent= activeCat==='recent'?'最近使ったスタンプがここに表示されます':'なし'; emojiScroll.appendChild(d); return; }
+    list.forEach(em=>{ const b=document.createElement('button'); b.type='button'; b.textContent=em;
+      b.addEventListener('click',()=>{ addSticker(em); pushRecent(em); stampTrigger.textContent=em; closePicker(); }); emojiScroll.appendChild(b); });
+  }
+  function openPicker(){
+    const mobile=window.matchMedia('(max-width:640px)').matches;
+    if(!mobile){ const r=stampTrigger.getBoundingClientRect(); emojiPicker.style.top=(r.bottom+6)+'px'; emojiPicker.style.left=Math.max(8,Math.min(r.left,window.innerWidth-376))+'px'; }
+    else { emojiPicker.style.top=''; emojiPicker.style.left=''; }
+    if(activeCat==='recent' && !recentEmojis.length) activeCat='smiley';
+    renderCats(); renderGrid();
+    pickerBackdrop.classList.add('show'); emojiPicker.classList.add('show');
+  }
+  function closePicker(){ pickerBackdrop.classList.remove('show'); emojiPicker.classList.remove('show'); }
+  stampTrigger.addEventListener('click',()=>{ if(hasImage) openPicker(); });
+  pickerBackdrop.addEventListener('click',closePicker);
 
   function syncToolUI(){
     const st=effect==='sticker';
@@ -574,7 +639,7 @@
     strengthCtl.style.display=st?'none':'';
     brushCtl.style.display=(!st&&mode==='brush')?'flex':'none';
     emojiPanel.classList.toggle('show',st);
-    if(!st) selStickerIdx=-1;
+    if(!st){ selStickerIdx=-1; closePicker(); }
     render();
   }
   function addSticker(emoji){
