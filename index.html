@@ -53,6 +53,14 @@
   input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--accent);border:none;box-shadow:0 1px 4px rgba(74,40,115,.4);cursor:pointer;}
   .panel-actions{display:flex;gap:8px;}
 
+  /* emoji sticker panel */
+  .emoji-panel{display:none;align-items:center;gap:10px;}
+  .emoji-panel.show{display:flex;}
+  .emoji-grid{display:flex;gap:4px;flex-wrap:wrap;}
+  .emoji-grid button{appearance:none;border:1px solid var(--line);background:var(--bg);cursor:pointer;width:38px;height:38px;border-radius:9px;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;transition:transform .1s,background .15s;}
+  .emoji-grid button:hover{background:var(--accent-wash);}
+  .emoji-grid button:active{transform:scale(.9);}
+
   /* upscale panel */
   .uppanel{flex:none;margin:14px 20px 0;padding:12px 16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;display:none;align-items:center;gap:14px;flex-wrap:wrap;}
   .uppanel.show{display:flex;}
@@ -148,16 +156,17 @@
         <button data-effect="pixelate" class="on">ピクセル</button>
         <button data-effect="blur">ぼかし</button>
         <button data-effect="box">ベタ塗り</button>
+        <button data-effect="sticker">スタンプ</button>
       </div>
     </div>
-    <div class="group">
+    <div class="group" id="modeGroup">
       <span class="group-label">方式</span>
       <div class="seg" id="modeSeg">
         <button data-mode="rect" class="on">四角</button>
         <button data-mode="brush">ブラシ</button>
       </div>
     </div>
-    <div class="ctl">
+    <div class="ctl" id="strengthCtl">
       <label id="strengthLabel">粗さ</label>
       <input type="range" id="strength" min="6" max="80" value="22" step="1">
       <span class="val" id="strengthVal">22</span>
@@ -166,6 +175,10 @@
       <label>太さ</label>
       <input type="range" id="brushSize" min="10" max="200" value="60" step="2">
       <span class="val" id="brushSizeVal">60</span>
+    </div>
+    <div class="emoji-panel" id="emojiPanel">
+      <span class="group-label">スタンプ</span>
+      <div class="emoji-grid" id="emojiGrid"></div>
     </div>
     <div class="panel-actions">
       <button class="btn btn-ghost btn-sm" id="undoBtn" disabled>
@@ -262,6 +275,7 @@
   const fileInput=$('fileInput'), saveBtn=$('saveBtn'), replaceBtn=$('replaceBtn'), pickEmpty=$('pickEmpty');
   const tabs=document.querySelectorAll('.tab');
   const toolpanel=$('toolpanel'), effectSeg=$('effectSeg'), modeSeg=$('modeSeg');
+  const modeGroup=$('modeGroup'), strengthCtl=$('strengthCtl'), emojiPanel=$('emojiPanel'), emojiGrid=$('emojiGrid');
   const strength=$('strength'), strengthVal=$('strengthVal'), strengthLabel=$('strengthLabel');
   const brushCtl=$('brushCtl'), brushSize=$('brushSize'), brushSizeVal=$('brushSizeVal');
   const undoBtn=$('undoBtn'), clearBtn=$('clearBtn'), zoomctl=$('zoomctl'), zoomlabel=$('zoomlabel');
@@ -271,6 +285,7 @@
 
   let currentTab='mosaic', hasImage=false, sourceName='image';
   let effect='pixelate', mode='rect';
+  let selStickerIdx=-1;   // index in operations of currently selected sticker (-1 = none)
   let upscaleFactor=2, accelTier=null, engineState='idle', backend=null;
   let outFormat='jpg';
 
@@ -289,8 +304,19 @@
 
   /* ---------- effect application ---------- */
   function applyOp(op){
-    if(op.shape==='rect') applyRectEffect(op.rect, op.effect, op.strength);
+    if(op.type==='sticker') drawSticker(op);
+    else if(op.shape==='rect') applyRectEffect(op.rect, op.effect, op.strength);
     else applyPathEffect(op.path, op.thickness, op.effect, op.strength);
+  }
+
+  function drawSticker(op){
+    cctx.save();
+    cctx.translate(op.cx, op.cy);
+    cctx.rotate(op.angle||0);
+    cctx.font=`${op.size}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+    cctx.textAlign='center'; cctx.textBaseline='middle';
+    cctx.fillText(op.emoji, 0, 0);
+    cctx.restore();
   }
 
   // Build a processed (pixelated/blurred/box) full-frame layer from current comp, then
@@ -391,6 +417,18 @@
       }
       ctx.restore();
     }
+    if(currentTab==='mosaic' && effect==='sticker' && selStickerIdx>=0 && operations[selStickerIdx]){
+      const H=stickerHandles(operations[selStickerIdx]);
+      ctx.save();
+      ctx.lineWidth=1.5*dpr/scale; ctx.strokeStyle='#6B3FA0'; ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(H.corners[0].x,H.corners[0].y);
+      for(let i=1;i<4;i++) ctx.lineTo(H.corners[i].x,H.corners[i].y);
+      ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(H.topMid.x,H.topMid.y); ctx.lineTo(H.rotate.x,H.rotate.y); ctx.stroke();
+      const r=7*dpr/scale; ctx.fillStyle='#fff';
+      [H.resize,H.rotate].forEach(p=>{ ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2); ctx.fill(); ctx.stroke(); });
+      ctx.restore();
+    }
     updateZoomLabel();
   }
   function updateZoomLabel(){ zoomlabel.textContent=Math.round((scale/fitScale())*100)+'%'; }
@@ -416,7 +454,7 @@
 
   /* ---------- gestures ---------- */
   const pointers=new Map();
-  let gesture=null, startImg=null, panLast=null, pinchPrev=null, spaceHeld=false, brushPts=null;
+  let gesture=null, startImg=null, panLast=null, pinchPrev=null, spaceHeld=false, brushPts=null, stickerStart=null;
   const canEdit=()=>hasImage&&currentTab==='mosaic';
   const isPanInput=e=>e.button===1||spaceHeld||!canEdit();
   const mid=p=>({x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2});
@@ -432,7 +470,13 @@
       const c=toCanvas(e);
       if(canEdit()&&!isPanInput(e)){
         const p=canvasToImg(c);
-        if(mode==='rect'){ gesture='select'; startImg=p; preview={rect:{x:p.x,y:p.y,w:0,h:0}}; }
+        if(effect==='sticker'){
+          const hit=hitSticker(p,c);
+          if(hit){ selStickerIdx=hit.idx; gesture='sticker-'+hit.mode; redoStack=[]; stickerStart={pI:p, op:{...operations[hit.idx]}}; }
+          else{ selStickerIdx=-1; gesture=null; }
+          render();
+        }
+        else if(mode==='rect'){ gesture='select'; startImg=p; preview={rect:{x:p.x,y:p.y,w:0,h:0}}; }
         else{ gesture='brush'; brushPts=[p]; preview={pts:brushPts,thickness:parseInt(brushSize.value,10)}; render(); }
       }else{ gesture='pan'; panLast=c; setCursor('grabbing'); }
     }
@@ -458,6 +502,12 @@
       render();
     }else if(gesture==='brush'&&brushPts){
       brushPts.push(canvasToImg(toCanvas(e))); render();
+    }else if(gesture&&gesture.startsWith('sticker-')&&selStickerIdx>=0&&stickerStart){
+      const p=canvasToImg(toCanvas(e)), op=operations[selStickerIdx], s=stickerStart;
+      if(gesture==='sticker-move'){ op.cx=s.op.cx+(p.x-s.pI.x); op.cy=s.op.cy+(p.y-s.pI.y); }
+      else if(gesture==='sticker-resize'){ const d=Math.hypot(p.x-op.cx,p.y-op.cy); op.size=clamp(2*d/(0.55*Math.SQRT2*2),16,Math.max(base.width,base.height)*3); }
+      else if(gesture==='sticker-rotate'){ op.angle=Math.atan2(p.y-op.cy,p.x-op.cx)+Math.PI/2; }
+      buildComposite(); render();
     }
     e.preventDefault();
   });
@@ -471,6 +521,8 @@
     }else if(g==='brush'&&brushPts){
       if(brushPts.length>0) commit({effect,strength:parseInt(strength.value,10),shape:'path',path:brushPts.slice(),thickness:parseInt(brushSize.value,10)});
       preview=null; brushPts=null;
+    }else if(g&&g.startsWith('sticker-')){
+      stickerStart=null; updateEditState();
     }
     if(pointers.size===1){ gesture='pan'; panLast=[...pointers.values()][0]; pinchPrev=null; }
     else if(pointers.size===0){ gesture=null; panLast=null; pinchPrev=null; setCursor(); }
@@ -502,7 +554,7 @@
   /* ---------- effect / mode / sliders ---------- */
   effectSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
     effectSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
-    effect=b.dataset.effect; syncStrengthLabel();
+    effect=b.dataset.effect; syncStrengthLabel(); syncToolUI();
   }));
   modeSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
     modeSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
@@ -512,11 +564,55 @@
   strength.addEventListener('input',()=>strengthVal.textContent=strength.value);
   brushSize.addEventListener('input',()=>brushSizeVal.textContent=brushSize.value);
 
+  /* ---------- sticker tool ---------- */
+  const EMOJIS=['😀','🙂','😎','😅','🥰','😆','😳','🙈','🐱','🐶','🌸','⭐','❤️','🔥','👍','❓'];
+  EMOJIS.forEach(em=>{ const b=document.createElement('button'); b.type='button'; b.textContent=em; b.addEventListener('click',()=>{ if(hasImage) addSticker(em); }); emojiGrid.appendChild(b); });
+
+  function syncToolUI(){
+    const st=effect==='sticker';
+    modeGroup.style.display=st?'none':'';
+    strengthCtl.style.display=st?'none':'';
+    brushCtl.style.display=(!st&&mode==='brush')?'flex':'none';
+    emojiPanel.classList.toggle('show',st);
+    if(!st) selStickerIdx=-1;
+    render();
+  }
+  function addSticker(emoji){
+    const size=Math.round(Math.min(base.width,base.height)*0.22);
+    operations.push({type:'sticker',emoji,cx:base.width/2,cy:base.height/2,size,angle:0});
+    redoStack=[]; selStickerIdx=operations.length-1;
+    buildComposite(); render(); updateEditState();
+  }
+  function stickerHalf(op){ return op.size*0.55; }
+  function imgToCanvas(p){ return {x:p.x*scale+ox, y:p.y*scale+oy}; }
+  function stickerHandles(op){
+    const h=stickerHalf(op), rot=op.angle||0, cos=Math.cos(rot), sin=Math.sin(rot);
+    const L=(lx,ly)=>({x:op.cx+lx*cos-ly*sin, y:op.cy+lx*sin+ly*cos});
+    return { half:h, resize:L(h,h), rotate:L(0,-(h+26*dpr/scale)), topMid:L(0,-h),
+             corners:[L(-h,-h),L(h,-h),L(h,h),L(-h,h)] };
+  }
+  function pointInSticker(p,op){
+    const rot=-(op.angle||0), cos=Math.cos(rot), sin=Math.sin(rot);
+    const dx=p.x-op.cx, dy=p.y-op.cy, lx=dx*cos-dy*sin, ly=dx*sin+dy*cos, h=stickerHalf(op);
+    return Math.abs(lx)<=h && Math.abs(ly)<=h;
+  }
+  function hitSticker(pImg,pCanvas){
+    const rPix=16*dpr;
+    if(selStickerIdx>=0 && operations[selStickerIdx]){
+      const H=stickerHandles(operations[selStickerIdx]);
+      const dr=imgToCanvas(H.rotate), dz=imgToCanvas(H.resize);
+      if(Math.hypot(pCanvas.x-dr.x,pCanvas.y-dr.y)<rPix) return {mode:'rotate',idx:selStickerIdx};
+      if(Math.hypot(pCanvas.x-dz.x,pCanvas.y-dz.y)<rPix) return {mode:'resize',idx:selStickerIdx};
+    }
+    for(let i=operations.length-1;i>=0;i--){ if(operations[i].type==='sticker' && pointInSticker(pImg,operations[i])) return {mode:'move',idx:i}; }
+    return null;
+  }
+
   /* ---------- undo / redo / clear ---------- */
-  function undo(){ if(operations.length){ redoStack.push(operations.pop()); buildComposite(); render(); updateEditState(); } }
+  function undo(){ if(operations.length){ redoStack.push(operations.pop()); if(selStickerIdx>=operations.length) selStickerIdx=-1; buildComposite(); render(); updateEditState(); } }
   function redo(){ if(redoStack.length){ operations.push(redoStack.pop()); buildComposite(); render(); updateEditState(); } }
   undoBtn.addEventListener('click',undo);
-  clearBtn.addEventListener('click',()=>{ if(operations.length){ redoStack=[]; operations=[]; buildComposite(); render(); updateEditState(); } });
+  clearBtn.addEventListener('click',()=>{ if(operations.length){ redoStack=[]; operations=[]; selStickerIdx=-1; buildComposite(); render(); updateEditState(); } });
   function updateEditState(){ const on=canEdit()&&operations.length>0; undoBtn.disabled=!on; clearBtn.disabled=!on; }
 
   /* ---------- tabs ---------- */
@@ -547,7 +643,7 @@
       base.width=img.naturalWidth; base.height=img.naturalHeight;
       comp.width=img.naturalWidth; comp.height=img.naturalHeight;
       bctx.setTransform(1,0,0,1,0,0); bctx.clearRect(0,0,base.width,base.height); bctx.drawImage(img,0,0);
-      operations=[]; redoStack=[]; URL.revokeObjectURL(url);
+      operations=[]; redoStack=[]; selStickerIdx=-1; URL.revokeObjectURL(url);
       hasImage=true; canvas.classList.add('loaded'); drop.classList.add('hide');
       saveBtn.disabled=false; replaceBtn.disabled=false;
       resize(); buildComposite(); fitView(); refreshUI();
@@ -817,7 +913,7 @@
   window.addEventListener('orientationchange',()=>setTimeout(resize,200));
 
   if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('service-worker.js').catch(()=>{}));
-  syncStrengthLabel(); resize(); refreshUI();
+  syncStrengthLabel(); syncToolUI(); resize(); refreshUI();
 })();
 </script>
 </body>
