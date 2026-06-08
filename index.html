@@ -621,7 +621,7 @@
     list.forEach(em=>{ const b=document.createElement('button'); b.type='button'; b.textContent=em;
       b.addEventListener('click',()=>{ addSticker(em); pushRecent(em); stampTrigger.textContent=em; closePicker(); }); emojiScroll.appendChild(b); });
   }
-  function openPicker(){
+  function openEmojiPicker(){
     const mobile=window.matchMedia('(max-width:640px)').matches;
     if(!mobile){ const r=stampTrigger.getBoundingClientRect(); emojiPicker.style.top=(r.bottom+6)+'px'; emojiPicker.style.left=Math.max(8,Math.min(r.left,window.innerWidth-376))+'px'; }
     else { emojiPicker.style.top=''; emojiPicker.style.left=''; }
@@ -630,7 +630,7 @@
     pickerBackdrop.classList.add('show'); emojiPicker.classList.add('show');
   }
   function closePicker(){ pickerBackdrop.classList.remove('show'); emojiPicker.classList.remove('show'); }
-  stampTrigger.addEventListener('click',()=>{ if(hasImage) openPicker(); });
+  stampTrigger.addEventListener('click',()=>{ if(hasImage) openEmojiPicker(); });
   pickerBackdrop.addEventListener('click',closePicker);
 
   function syncToolUI(){
