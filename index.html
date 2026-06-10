@@ -77,6 +77,20 @@
     .emoji-scroll{grid-template-columns:repeat(6,1fr);}
   }
 
+  /* color picker for box fill */
+  .color-trigger{appearance:none;width:38px;height:38px;border-radius:9px;border:1px solid var(--line);cursor:pointer;padding:0;background:#000;transition:transform .1s;}
+  .color-trigger:active{transform:scale(.92);}
+  .color-picker-backdrop{position:fixed;inset:0;z-index:40;display:none;}
+  .color-picker-backdrop.show{display:block;}
+  .color-picker{position:fixed;z-index:41;display:none;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(26,19,32,.25);padding:12px;grid-template-columns:repeat(10,1fr);gap:7px;}
+  .color-picker.show{display:grid;}
+  .color-picker button{width:26px;height:26px;border-radius:50%;border:1px solid rgba(0,0,0,.12);cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;line-height:1;}
+  .color-picker button.on{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--accent);}
+  .color-picker button .chk{font-size:13px;font-weight:700;}
+  @media(max-width:640px){
+    .color-picker{left:0!important;right:0!important;bottom:0!important;top:auto!important;border-radius:16px 16px 0 0;justify-content:center;}
+  }
+
   /* upscale panel */
   .uppanel{flex:none;margin:14px 20px 0;padding:12px 16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;display:none;align-items:center;gap:14px;flex-wrap:wrap;}
   .uppanel.show{display:flex;}
@@ -187,6 +201,10 @@
       <input type="range" id="strength" min="6" max="80" value="22" step="1">
       <span class="val" id="strengthVal">22</span>
     </div>
+    <div class="ctl" id="colorCtl" style="display:none;">
+      <label>塗り</label>
+      <button type="button" class="color-trigger" id="colorTrigger"></button>
+    </div>
     <div class="ctl" id="brushCtl" style="display:none;">
       <label>太さ</label>
       <input type="range" id="brushSize" min="10" max="200" value="60" step="2">
@@ -288,6 +306,9 @@
     <div class="emoji-scroll" id="emojiScroll"></div>
   </div>
 
+  <div class="color-picker-backdrop" id="colorBackdrop"></div>
+  <div class="color-picker" id="colorPicker"></div>
+
 <script>
 (() => {
   "use strict";
@@ -297,7 +318,7 @@
   const fileInput=$('fileInput'), saveBtn=$('saveBtn'), replaceBtn=$('replaceBtn'), pickEmpty=$('pickEmpty');
   const tabs=document.querySelectorAll('.tab');
   const toolpanel=$('toolpanel'), effectSeg=$('effectSeg'), modeSeg=$('modeSeg');
-  const modeGroup=$('modeGroup'), strengthCtl=$('strengthCtl'), emojiPanel=$('emojiPanel');
+  const modeGroup=$('modeGroup'), strengthCtl=$('strengthCtl'), colorCtl=$('colorCtl'), emojiPanel=$('emojiPanel');
   const strength=$('strength'), strengthVal=$('strengthVal'), strengthLabel=$('strengthLabel');
   const brushCtl=$('brushCtl'), brushSize=$('brushSize'), brushSizeVal=$('brushSizeVal');
   const undoBtn=$('undoBtn'), clearBtn=$('clearBtn'), zoomctl=$('zoomctl'), zoomlabel=$('zoomlabel');
@@ -308,6 +329,7 @@
   let currentTab='mosaic', hasImage=false, sourceName='image';
   let effect='pixelate', mode='rect';
   let selStickerIdx=-1;   // index in operations of currently selected sticker (-1 = none)
+  let fillColor='#000000';  // current ベタ塗り color ("color to paint next")
   let upscaleFactor=2, accelTier=null, engineState='idle', backend=null;
   let outFormat='jpg';
 
@@ -327,8 +349,8 @@
   /* ---------- effect application ---------- */
   function applyOp(op){
     if(op.type==='sticker') drawSticker(op);
-    else if(op.shape==='rect') applyRectEffect(op.rect, op.effect, op.strength);
-    else applyPathEffect(op.path, op.thickness, op.effect, op.strength);
+    else if(op.shape==='rect') applyRectEffect(op.rect, op.effect, op.strength, op.color);
+    else applyPathEffect(op.path, op.thickness, op.effect, op.strength, op.color);
   }
 
   function drawSticker(op){
@@ -343,7 +365,7 @@
 
   // Build a processed (pixelated/blurred/box) full-frame layer from current comp, then
   // paint it back only inside the given mask. This keeps brush & rect on one code path.
-  function processedLayer(effectType, strength){
+  function processedLayer(effectType, strength, color){
     const layer=document.createElement('canvas'); layer.width=comp.width; layer.height=comp.height;
     const lctx=layer.getContext('2d');
     if(effectType==='pixelate'){
@@ -366,27 +388,26 @@
       while(cw<comp.width/2||ch<comp.height/2) step(Math.min(comp.width,cw*2),Math.min(comp.height,ch*2));
       lctx.imageSmoothingEnabled=true; lctx.imageSmoothingQuality='high';
       lctx.drawImage(cur,0,0,cw,ch,0,0,comp.width,comp.height);
-    }else{ // box: solid average-ish color -> use heavy downscale to 1px then fill
-      const tmp=document.createElement('canvas'); tmp.width=1; tmp.height=1;
-      tmp.getContext('2d').drawImage(comp,0,0,comp.width,comp.height,0,0,1,1);
-      lctx.drawImage(tmp,0,0,1,1,0,0,comp.width,comp.height);
+    }else{ // box: fill with the chosen solid color
+      lctx.fillStyle=color||'#000000';
+      lctx.fillRect(0,0,comp.width,comp.height);
     }
     return layer;
   }
 
-  function applyRectEffect(r, effectType, strength){
+  function applyRectEffect(r, effectType, strength, color){
     let {x,y,w,h}=r;
     x=Math.max(0,Math.round(x)); y=Math.max(0,Math.round(y));
     w=Math.min(comp.width-x,Math.round(w)); h=Math.min(comp.height-y,Math.round(h));
     if(w<=0||h<=0) return;
-    const layer=processedLayer(effectType,strength);
+    const layer=processedLayer(effectType,strength,color);
     cctx.save(); cctx.beginPath(); cctx.rect(x,y,w,h); cctx.clip();
     cctx.drawImage(layer,0,0); cctx.restore();
   }
 
-  function applyPathEffect(path, thickness, effectType, strength){
+  function applyPathEffect(path, thickness, effectType, strength, color){
     if(!path||path.length===0) return;
-    const layer=processedLayer(effectType,strength);
+    const layer=processedLayer(effectType,strength,color);
     maskPaintPath(path, thickness, layer);
   }
 
@@ -538,10 +559,10 @@
     const g=gesture; pointers.delete(e.pointerId);
     if(g==='select'&&preview&&preview.rect){
       const r=preview.rect, minImg=8*dpr/scale;
-      if(r.w>minImg&&r.h>minImg) commit({effect,strength:parseInt(strength.value,10),shape:'rect',rect:{...r}});
+      if(r.w>minImg&&r.h>minImg) commit({effect,strength:parseInt(strength.value,10),shape:'rect',rect:{...r},color:fillColor});
       preview=null; startImg=null;
     }else if(g==='brush'&&brushPts){
-      if(brushPts.length>0) commit({effect,strength:parseInt(strength.value,10),shape:'path',path:brushPts.slice(),thickness:parseInt(brushSize.value,10)});
+      if(brushPts.length>0) commit({effect,strength:parseInt(strength.value,10),shape:'path',path:brushPts.slice(),thickness:parseInt(brushSize.value,10),color:fillColor});
       preview=null; brushPts=null;
     }else if(g&&g.startsWith('sticker-')){
       stickerStart=null; updateEditState();
@@ -633,13 +654,45 @@
   stampTrigger.addEventListener('click',()=>{ if(hasImage) openEmojiPicker(); });
   pickerBackdrop.addEventListener('click',closePicker);
 
+  /* ---------- color palette (ベタ塗り) ---------- */
+  const colorTrigger=$('colorTrigger'), colorBackdrop=$('colorBackdrop'), colorPicker=$('colorPicker');
+  function hsl2hex(h,s,l){ s/=100; l/=100; const k=n=>(n+h/30)%12, a=s*Math.min(l,1-l); const f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));
+    const to=x=>Math.round(x*255).toString(16).padStart(2,'0'); return '#'+to(f(0))+to(f(8))+to(f(4)); }
+  const PALETTE=(()=>{
+    const grays=['#000000','#3a3a3a','#5a5a5a','#7a7a7a','#9a9a9a','#b5b5b5','#cfcfcf','#e2e2e2','#f1f1f1','#ffffff'];
+    const hues=[0,28,45,60,130,185,205,235,275,320];
+    const tones=[{s:85,l:45},{s:70,l:82},{s:58,l:70},{s:62,l:58},{s:72,l:47},{s:82,l:37},{s:88,l:26}];
+    const out=[...grays];
+    tones.forEach(t=>hues.forEach(h=>out.push(hsl2hex(h,t.s,t.l))));
+    return out;
+  })();
+  function renderPalette(){
+    colorPicker.innerHTML='';
+    PALETTE.forEach(col=>{ const b=document.createElement('button'); b.type='button'; b.style.background=col;
+      if(col.toLowerCase()===fillColor.toLowerCase()){ b.classList.add('on'); const c=document.createElement('span'); c.className='chk'; c.textContent='✓'; c.style.color=(col==='#000000'||/^#[0-3]/.test(col))?'#fff':'#000'; b.appendChild(c); }
+      b.addEventListener('click',()=>{ fillColor=col; colorTrigger.style.background=col; closeColorPicker(); }); colorPicker.appendChild(b); });
+  }
+  function openColorPicker(){
+    renderPalette();
+    const mobile=window.matchMedia('(max-width:640px)').matches;
+    if(!mobile){ const r=colorTrigger.getBoundingClientRect(); colorPicker.style.top=(r.bottom+6)+'px'; colorPicker.style.left=Math.max(8,Math.min(r.left,window.innerWidth-340))+'px'; }
+    else { colorPicker.style.top=''; colorPicker.style.left=''; }
+    colorBackdrop.classList.add('show'); colorPicker.classList.add('show');
+  }
+  function closeColorPicker(){ colorBackdrop.classList.remove('show'); colorPicker.classList.remove('show'); }
+  colorTrigger.style.background=fillColor;
+  colorTrigger.addEventListener('click',()=>{ if(hasImage) openColorPicker(); });
+  colorBackdrop.addEventListener('click',closeColorPicker);
+
   function syncToolUI(){
-    const st=effect==='sticker';
+    const st=effect==='sticker', bx=effect==='box';
     modeGroup.style.display=st?'none':'';
-    strengthCtl.style.display=st?'none':'';
+    strengthCtl.style.display=(st||bx)?'none':'';
+    colorCtl.style.display=bx?'flex':'none';
     brushCtl.style.display=(!st&&mode==='brush')?'flex':'none';
     emojiPanel.classList.toggle('show',st);
     if(!st){ selStickerIdx=-1; closePicker(); }
+    if(!bx) closeColorPicker();
     render();
   }
   function addSticker(emoji){
