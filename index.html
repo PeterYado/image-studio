@@ -251,6 +251,7 @@
       <div class="seg" id="formatSeg">
         <button data-fmt="jpg" class="on">JPG</button>
         <button data-fmt="png">PNG</button>
+        <button data-fmt="svg">SVG</button>
       </div>
     </div>
     <div class="ctl" id="qualityCtl">
@@ -805,18 +806,28 @@
 
   async function doConvert(){
     if(!hasImage) return;
-    let out=comp;
-    // JPG has no alpha: flatten onto white so transparent areas don't turn black
-    if(outFormat==='jpg'){
-      const flat=document.createElement('canvas'); flat.width=comp.width; flat.height=comp.height;
-      const fx=flat.getContext('2d'); fx.fillStyle='#fff'; fx.fillRect(0,0,flat.width,flat.height); fx.drawImage(comp,0,0);
-      out=flat;
+    let blob, fname, mime;
+    if(outFormat==='svg'){
+      // SVG wrapper: embeds the image as-is (still pixel data, but a valid .svg file)
+      const dataUrl=comp.toDataURL('image/png');
+      const svg=`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${comp.width}" height="${comp.height}" viewBox="0 0 ${comp.width} ${comp.height}">`
+        +`<image width="${comp.width}" height="${comp.height}" xlink:href="${dataUrl}"/></svg>`;
+      mime='image/svg+xml';
+      blob=new Blob([svg],{type:mime});
+      fname=`${sourceName}.svg`;
+    }else{
+      let out=comp;
+      // JPG has no alpha: flatten onto white so transparent areas don't turn black
+      if(outFormat==='jpg'){
+        const flat=document.createElement('canvas'); flat.width=comp.width; flat.height=comp.height;
+        const fx=flat.getContext('2d'); fx.fillStyle='#fff'; fx.fillRect(0,0,flat.width,flat.height); fx.drawImage(comp,0,0);
+        out=flat;
+      }
+      mime = outFormat==='jpg' ? 'image/jpeg' : 'image/png';
+      const q = outFormat==='jpg' ? parseInt(quality.value,10)/100 : undefined;
+      blob=await new Promise(res=>out.toBlob(res,mime,q)); if(!blob) return;
+      fname=`${sourceName}.${outFormat==='jpg'?'jpg':'png'}`;
     }
-    const mime = outFormat==='jpg' ? 'image/jpeg' : 'image/png';
-    const q = outFormat==='jpg' ? parseInt(quality.value,10)/100 : undefined;
-    const blob=await new Promise(res=>out.toBlob(res,mime,q)); if(!blob) return;
-    const ext = outFormat==='jpg' ? 'jpg' : 'png';
-    const fname=`${sourceName}.${ext}`;
     const file=new File([blob],fname,{type:mime});
     if(useShareSheet(file)){
       try{ await navigator.share({files:[file]}); return; }catch(err){ if(err&&err.name==='AbortError') return; }
