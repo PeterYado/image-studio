@@ -235,6 +235,7 @@
     <div class="group">
       <span class="group-label">倍率</span>
       <div class="seg" id="scaleSeg">
+        <button data-scale="1.5">1.5×</button>
         <button data-scale="2" class="on">2×</button>
         <button data-scale="4">4×</button>
       </div>
@@ -891,7 +892,7 @@
   }));
   scaleSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
     scaleSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
-    upscaleFactor=parseInt(b.dataset.scale,10);
+    upscaleFactor=parseFloat(b.dataset.scale);
   }));
 
   /* ---------- M5b/M5c: model registry + tiled inference ---------- */
@@ -996,11 +997,17 @@
     const cropped=makeImg(cropW,cropH); blit(cropped,0,0,img,0,0,cropW,cropH);
     const tmp=document.createElement('canvas'); tmp.width=cropW; tmp.height=cropH;
     tmp.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(cropped.data),cropW,cropH),0,0);
-    let fw=cropW, fh=cropH;
-    if(upscaleFactor===2){ fw=Math.round(cropW/2); fh=Math.round(cropH/2); }
+    const fw=Math.round(w0*upscaleFactor), fh=Math.round(h0*upscaleFactor);
+    // 4× 결과를 목표 배율로 축소: 절반씩 단계적으로 줄여 계단 현상을 막는다 (4×→2×→1.5×)
+    let src=tmp;
+    while(src.width/2>=fw && src.height/2>=fh && src.width>fw){
+      const half=document.createElement('canvas'); half.width=Math.round(src.width/2); half.height=Math.round(src.height/2);
+      const hctx=half.getContext('2d'); hctx.imageSmoothingEnabled=true; hctx.imageSmoothingQuality='high';
+      hctx.drawImage(src,0,0,half.width,half.height); src=half;
+    }
     base.width=fw; base.height=fh; comp.width=fw; comp.height=fh;
     bctx.imageSmoothingEnabled=true; bctx.imageSmoothingQuality='high';
-    bctx.clearRect(0,0,fw,fh); bctx.drawImage(tmp,0,0,cropW,cropH,0,0,fw,fh);
+    bctx.clearRect(0,0,fw,fh); bctx.drawImage(src,0,0,src.width,src.height,0,0,fw,fh);
     operations=[]; redoStack=[];
     buildComposite(); resize(); fitView(); updateEditState();
   }
