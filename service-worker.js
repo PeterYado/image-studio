@@ -1,8 +1,9 @@
 /* Mosaic Studio - service worker (M1)
    앱 셸을 캐싱해 오프라인 동작을 지원한다.
-   화질업 AI 모델은 이후 단계에서 IndexedDB로 별도 캐싱한다. */
+   화질업 AI 모델은 별도 캐싱한다 (TF.js: IndexedDB, ONNX: MODEL_CACHE). */
 
-const CACHE = 'image-studio-v20';
+const CACHE = 'image-studio-v22';
+const MODEL_CACHE = 'image-studio-models';  // 페이지가 직접 관리하는 ONNX 모델용 (업데이트 시에도 유지)
 const ASSETS = [
   './',
   './index.html',
@@ -23,7 +24,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+      Promise.all(keys.filter(k => k !== CACHE && k !== MODEL_CACHE).map(k => caches.delete(k)))
     )
   );
   self.clients.claim();
@@ -32,6 +33,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
+  if (new URL(req.url).pathname.endsWith('.onnx')) return;  // 모델은 페이지 측에서 캐싱한다
 
   // 폰트 등 외부 origin: 네트워크 우선, 실패 시 캐시
   if (new URL(req.url).origin !== self.location.origin) {

@@ -235,6 +235,7 @@
     <div class="group">
       <span class="group-label">倍率</span>
       <div class="seg" id="scaleSeg">
+        <button data-scale="1.5">1.5×</button>
         <button data-scale="2" class="on">2×</button>
         <button data-scale="4">4×</button>
       </div>
@@ -880,6 +881,7 @@
       }
       setFill(1);
       engineState = backend ? 'ready' : 'failed';
+      tf.io.removeModel('indexeddb://realesrgan-anime').catch(()=>{});  // drop the replaced illustration model
       return engineState==='ready';
     }catch(e){ engineState='failed'; return false; }
   }
@@ -891,14 +893,16 @@
   }));
   scaleSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
     scaleSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
-    upscaleFactor=parseInt(b.dataset.scale,10);
+    upscaleFactor=parseFloat(b.dataset.scale);
   }));
 
   /* ---------- M5b/M5c: model registry + tiled inference ---------- */
   const MODELS={
     general:{ url:'models/realesrgan-general/model.json', key:'realesrgan-general', tile:64,  minLap:12 },
     plus:   { url:'models/realesrgan-x4plus/model.json',  key:'realesrgan-x4plus',  tile:128, minLap:16 },
-    anime:  { url:'models/realesrgan-anime/model.json',   key:'realesrgan-anime',   tile:128, minLap:16 }
+    // illustration: waifu2x swin_unet art (noise0, 4x), exported to ONNX with nunif's (MIT) exporter
+    anime:  { runtime:'ort', url:'models/waifu2x-art/noise0_scale4x.onnx', key:'waifu2x-art-noise0-4x',
+              scale:4, offset:32, blend:16, tile:{ webgpu:256, wasm:112 } }
   };
   let modelId='general';
   const NATIVE_FACTOR=4, MAX_INPUT_DIM=1536;
@@ -996,13 +1000,137 @@
     const cropped=makeImg(cropW,cropH); blit(cropped,0,0,img,0,0,cropW,cropH);
     const tmp=document.createElement('canvas'); tmp.width=cropW; tmp.height=cropH;
     tmp.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(cropped.data),cropW,cropH),0,0);
-    let fw=cropW, fh=cropH;
-    if(upscaleFactor===2){ fw=Math.round(cropW/2); fh=Math.round(cropH/2); }
+    const fw=Math.round(w0*upscaleFactor), fh=Math.round(h0*upscaleFactor);
+    // downscale the 4x result to the target factor in halving steps to avoid aliasing (4x -> 2x -> 1.5x)
+    let src=tmp;
+    while(src.width/2>=fw && src.height/2>=fh && src.width>fw){
+      const half=document.createElement('canvas'); half.width=Math.round(src.width/2); half.height=Math.round(src.height/2);
+      const hctx=half.getContext('2d'); hctx.imageSmoothingEnabled=true; hctx.imageSmoothingQuality='high';
+      hctx.drawImage(src,0,0,half.width,half.height); src=half;
+    }
     base.width=fw; base.height=fh; comp.width=fw; comp.height=fh;
     bctx.imageSmoothingEnabled=true; bctx.imageSmoothingQuality='high';
-    bctx.clearRect(0,0,fw,fh); bctx.drawImage(tmp,0,0,cropW,cropH,0,0,fw,fh);
+    bctx.clearRect(0,0,fw,fh); bctx.drawImage(src,0,0,src.width,src.height,0,0,fw,fh);
     operations=[]; redoStack=[];
     buildComposite(); resize(); fitView(); updateEditState();
+  }
+
+  /* ---------- waifu2x engine (ONNX Runtime Web) ---------- */
+  const ORT_V='1.29.0', MODEL_CACHE='image-studio-models';
+  const ortSessions={};  // key -> {session, ep}
+
+  async function loadOrt(){
+    if(window.ort) return true;
+    try{ await loadScript(`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_V}/dist/ort.min.js`); }catch{ return false; }
+    // multi-threading only works when cross-origin isolated
+    ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency||1) : 1;
+    return true;
+  }
+
+  // ONNX models live in their own Cache Storage bucket, kept across app updates
+  async function fetchModelBytes(url){
+    let cache=null;
+    try{ cache=await caches.open(MODEL_CACHE); const hit=await cache.match(url); if(hit) return new Uint8Array(await hit.arrayBuffer()); }catch{}
+    progressText.textContent='モデルをダウンロード中…'; setFill(0);
+    const res=await fetch(url);
+    if(!res.ok) throw new Error(`model download failed (${res.status})`);
+    const total=+res.headers.get('content-length')||0, chunks=[]; let got=0;
+    const reader=res.body.getReader();
+    for(;;){
+      const {done,value}=await reader.read(); if(done) break;
+      chunks.push(value); got+=value.length; if(total) setFill(Math.min(got/total,1));
+    }
+    const bytes=new Uint8Array(got); let o=0; for(const c of chunks){ bytes.set(c,o); o+=c.length; }
+    try{ if(cache) await cache.put(url,new Response(bytes)); }catch{}
+    return bytes;
+  }
+
+  async function getOrtSession(cfg, forceWasm){
+    const cached=ortSessions[cfg.key];
+    if(cached&&!(forceWasm&&cached.ep!=='wasm')) return cached;
+    const bytes=await fetchModelBytes(cfg.url);
+    progressText.textContent='モデルを準備中…';
+    let session=null, ep='wasm';
+    if(!forceWasm&&navigator.gpu){
+      try{ session=await ort.InferenceSession.create(bytes,{executionProviders:['webgpu']}); ep='webgpu'; }catch{ session=null; }
+    }
+    if(!session){ session=await ort.InferenceSession.create(bytes,{executionProviders:['wasm']}); ep='wasm'; }
+    return ortSessions[cfg.key]={session, ep};
+  }
+
+  // waifu2x tiled rendering with seam blending (port of nunif/utils/seam_blending.py).
+  // Output rows are finalized one tile row at a time, so the float buffers only span one tile row.
+  async function enlargeWaifu2x(src, sess, cfg){
+    const {scale, offset, blend}=cfg, W=src.width, H=src.height, OW=W*scale, OH=H*scale;
+    let tile=cfg.tile[sess.ep]; while((tile-16)%12||(tile-16)%16) tile++;  // swin_unet tile constraint
+    const inOff=Math.ceil(offset/scale), inStep=tile-(inOff*2+Math.ceil(blend/scale));
+    const T=tile*scale-offset*2, outStep=inStep*scale;   // model output size / output tile step
+    let hb=0, wb=0, ih=0, iw=0;
+    while(ih<H+inOff*2){ ih=hb*inStep+tile; hb++; }
+    while(iw<W+inOff*2){ iw=wb*inStep+tile; wb++; }
+    const BW=iw*scale;
+    // blend filter: (d+1)/(blend+1) within `blend` px of the edge, 1 inside
+    const filt=new Float32Array(T*T);
+    for(let y=0;y<T;y++) for(let x=0;x<T;x++){
+      const d=Math.min(x,y,T-1-x,T-1-y); filt[y*T+x]= d<blend ? (d+1)/(blend+1) : 1;
+    }
+    const plane=T*BW, acc=new Float32Array(plane*3), wsum=new Float32Array(plane);
+    const out=makeImg(OW,OH), tin=new Float32Array(3*tile*tile), tt=tile*tile, sd=src.data;
+    const total=hb*wb; let done=0;
+    for(let hi=0;hi<hb;hi++){
+      for(let wi=0;wi<wb;wi++){
+        // input tile with replication padding: RGBA -> CHW float
+        const iy=hi*inStep-inOff, ix=wi*inStep-inOff;
+        for(let y=0;y<tile;y++){
+          const sy=Math.min(Math.max(iy+y,0),H-1);
+          for(let x=0;x<tile;x++){
+            const sx=Math.min(Math.max(ix+x,0),W-1), si=(sy*W+sx)*4, ti=y*tile+x;
+            tin[ti]=sd[si]/255; tin[tt+ti]=sd[si+1]/255; tin[2*tt+ti]=sd[si+2]/255;
+          }
+        }
+        const res=await sess.session.run({x:new ort.Tensor('float32',tin,[1,3,tile,tile])});
+        const yv=res.y.data, TT=T*T, x0=wi*outStep;
+        for(let y=0;y<T;y++){
+          const row=y*BW+x0, frow=y*T;
+          for(let x=0;x<T;x++){
+            const w=filt[frow+x], bi=row+x, ti=frow+x;
+            wsum[bi]+=w; acc[bi]+=w*yv[ti]; acc[plane+bi]+=w*yv[TT+ti]; acc[2*plane+bi]+=w*yv[2*TT+ti];
+          }
+        }
+        res.y.dispose&&res.y.dispose();
+        done++; setFill(done/total); progressText.textContent=`処理中… ${Math.round(done/total*100)}%`;
+        await new Promise(r=>setTimeout(r));
+      }
+      // write out the rows this tile row finalized, then shift the overlap to the top
+      const last=hi===hb-1, rows=last?T:outStep, base=hi*outStep, od=out.data;
+      for(let r=0;r<rows;r++){
+        const gy=base+r; if(gy>=OH) break;
+        for(let gx=0;gx<OW;gx++){
+          const bi=r*BW+gx, inv=255/wsum[bi], oi=(gy*OW+gx)*4;
+          od[oi]=acc[bi]*inv+0.5; od[oi+1]=acc[plane+bi]*inv+0.5; od[oi+2]=acc[2*plane+bi]*inv+0.5; od[oi+3]=255;
+        }
+      }
+      if(!last){
+        const keep=(T-outStep)*BW;
+        for(let c=0;c<3;c++){ const p0=c*plane; acc.copyWithin(p0,p0+outStep*BW,p0+plane); acc.fill(0,p0+keep,p0+plane); }
+        wsum.copyWithin(0,outStep*BW,plane); wsum.fill(0,keep,plane);
+      }
+    }
+    return out;
+  }
+
+  async function upscaleWaifu2x(input, cfg){
+    let sess=await getOrtSession(cfg,false);
+    const label=ep=>`バックエンド: ${ep==='webgpu'?'WebGPU':'CPU (WASM)'} ／ ${upscaleFactor}×`;
+    progressText.textContent='処理中… 0%'; progressSub.textContent=label(sess.ep); setFill(0);
+    try{ return await enlargeWaifu2x(input, sess, cfg); }
+    catch(err){
+      if(sess.ep!=='webgpu') throw err;
+      // WebGPU failed: retry on WASM
+      sess=await getOrtSession(cfg,true);
+      progressText.textContent='処理中… 0%'; progressSub.textContent=label(sess.ep); setFill(0);
+      return await enlargeWaifu2x(input, sess, cfg);
+    }
   }
 
   /* ---------- upscale button (M5b) ---------- */
@@ -1014,17 +1142,22 @@
       setTimeout(hideProgress,3200); return;
     }
     upscaling=true; upscaleBtn.disabled=true;
-    showProgress('AIエンジンを準備中…','TensorFlow.js を読み込んでいます');
+    const cfg=MODELS[modelId], useOrt=cfg.runtime==='ort';
+    showProgress('AIエンジンを準備中…', useOrt?'ONNX Runtime を読み込んでいます':'TensorFlow.js を読み込んでいます');
     try{
-      if(!await loadEngine()){ progressText.textContent='エンジンの読み込みに失敗'; progressSub.textContent='オンライン環境でお試しください'; setTimeout(hideProgress,2800); return; }
-      progressText.textContent='モデルを準備中…'; progressSub.textContent=`バックエンド: ${backend} ／ ${upscaleFactor}×`;
-      const mdl=await loadModel();
+      if(!await (useOrt?loadOrt():loadEngine())){ progressText.textContent='エンジンの読み込みに失敗'; progressSub.textContent='オンライン環境でお試しください'; setTimeout(hideProgress,2800); return; }
       const w0=comp.width, h0=comp.height;
       const src=cctx.getImageData(0,0,w0,h0);
-      let input=makeImg(w0,h0,new Uint8ClampedArray(src.data));
-      input=padToTile(input,MODELS[modelId].tile);
-      progressText.textContent='処理中… 0%'; setFill(0);
-      const result=await enlarge(input, mdl);
+      let input=makeImg(w0,h0,new Uint8ClampedArray(src.data)), result;
+      if(useOrt){
+        result=await upscaleWaifu2x(input, cfg);
+      }else{
+        progressText.textContent='モデルを準備中…'; progressSub.textContent=`バックエンド: ${backend} ／ ${upscaleFactor}×`;
+        const mdl=await loadModel();
+        input=padToTile(input,cfg.tile);
+        progressText.textContent='処理中… 0%'; setFill(0);
+        result=await enlarge(input, mdl);
+      }
       progressText.textContent='画像を生成中…';
       applyResult(result, w0, h0);
       hideProgress();
