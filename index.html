@@ -876,16 +876,12 @@
       if(!window.tf){ await loadScript(`https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@${V}/dist/tf.min.js`); }
       setFill(0.5);
       backend=null;
+      // tf.setBackend() reports a failed init by resolving to false (it does not throw)
+      const use=async name=>{ try{ if(await tf.setBackend(name)){ await tf.ready(); backend=name; } }catch{} return !!backend; };
       if(navigator.gpu){
-        try{
-          await loadScript(`https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@${V}/dist/tf-backend-webgpu.min.js`);
-          await tf.setBackend('webgpu'); await tf.ready(); backend='webgpu';
-        }catch{ backend=null; }
+        try{ await loadScript(`https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@${V}/dist/tf-backend-webgpu.min.js`); await use('webgpu'); }catch{}
       }
-      if(!backend){
-        try{ await tf.setBackend('webgl'); await tf.ready(); backend='webgl'; }
-        catch{ try{ await tf.setBackend('cpu'); await tf.ready(); backend='cpu'; }catch{} }
-      }
+      if(!backend&&!await use('webgl')) await use('cpu');
       setFill(1);
       engineState = backend ? 'ready' : 'failed';
       tf.io.removeModel('indexeddb://realesrgan-anime').catch(()=>{});  // drop the replaced illustration model
