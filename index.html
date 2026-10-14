@@ -1045,6 +1045,13 @@
     return bytes;
   }
 
+  function swinTileSize(t){ while((t-16)%12||(t-16)%16) t++; return t; }  // swin_unet tile constraint
+  // Fixing the input size lets ORT fold the shape/mask subgraphs away at load time
+  // (1702 -> 672 nodes); otherwise Mod/ConstantOfShape fall back to CPU on WebGPU every tile.
+  function createSession(bytes, ep, tile){
+    return ort.InferenceSession.create(bytes,{ executionProviders:[ep],
+      freeDimensionOverrides:{ batch_size:1, input_height:tile, input_width:tile } });
+  }
   async function getOrtSession(cfg, forceWasm){
     const cached=ortSessions[cfg.key];
     if(cached&&!(forceWasm&&cached.ep!=='wasm')) return cached;
@@ -1052,17 +1059,17 @@
     progressText.textContent='モデルを準備中…';
     let session=null, ep='wasm';
     if(!forceWasm&&navigator.gpu){
-      try{ session=await ort.InferenceSession.create(bytes,{executionProviders:['webgpu']}); ep='webgpu'; }catch{ session=null; }
+      try{ session=await createSession(bytes,'webgpu',swinTileSize(cfg.tile.webgpu)); ep='webgpu'; }catch{ session=null; }
     }
-    if(!session){ session=await ort.InferenceSession.create(bytes,{executionProviders:['wasm']}); ep='wasm'; }
-    return ortSessions[cfg.key]={session, ep};
+    if(!session){ session=await createSession(bytes,'wasm',swinTileSize(cfg.tile.wasm)); ep='wasm'; }
+    return ortSessions[cfg.key]={session, ep, tile:swinTileSize(cfg.tile[ep])};
   }
 
   // waifu2x tiled rendering with seam blending (port of nunif/utils/seam_blending.py).
   // Output rows are finalized one tile row at a time, so the float buffers only span one tile row.
   async function enlargeWaifu2x(src, sess, cfg){
     const {scale, offset, blend}=cfg, W=src.width, H=src.height, OW=W*scale, OH=H*scale;
-    let tile=cfg.tile[sess.ep]; while((tile-16)%12||(tile-16)%16) tile++;  // swin_unet tile constraint
+    const tile=sess.tile;
     const inOff=Math.ceil(offset/scale), inStep=tile-(inOff*2+Math.ceil(blend/scale));
     const T=tile*scale-offset*2, outStep=inStep*scale;   // model output size / output tile step
     let hb=0, wb=0, ih=0, iw=0;

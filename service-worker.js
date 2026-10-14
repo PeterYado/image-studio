@@ -2,7 +2,7 @@
    앱 셸을 캐싱해 오프라인 동작을 지원한다.
    화질업 AI 모델은 별도 캐싱한다 (TF.js: IndexedDB, ONNX: MODEL_CACHE). */
 
-const CACHE = 'image-studio-v22';
+const CACHE = 'image-studio-v23';
 const MODEL_CACHE = 'image-studio-models';  // 페이지가 직접 관리하는 ONNX 모델용 (업데이트 시에도 유지)
 const ASSETS = [
   './',
