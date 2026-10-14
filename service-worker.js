@@ -2,7 +2,7 @@
    앱 셸을 캐싱해 오프라인 동작을 지원한다.
    화질업 AI 모델(ONNX)은 페이지가 MODEL_CACHE에 별도로 캐싱한다. */
 
-const CACHE = 'image-studio-v27';
+const CACHE = 'image-studio-v28';
 const MODEL_CACHE = 'image-studio-models';  // 페이지가 직접 관리하는 ONNX 모델용 (업데이트 시에도 유지)
 const ASSETS = [
   './',

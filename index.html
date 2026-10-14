@@ -882,26 +882,19 @@
               scale:4, offset:32, blend:16, tile:{ webgpu:256, wasm:112 } }
   };
   let modelId='photo';
-  const MAX_INPUT_DIM=1536;
+  const IS_MOBILE=/Android|iPhone|iPad|iPod/.test(navigator.userAgent)
+    ||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);  // iPadOS reports as Mac
+  // Output size limits. Mobile: iOS Safari's max canvas area (4096x4096); desktop: memory budget.
+  const MAX_OUT_PIXELS=IS_MOBILE?4096*4096:8000*8000, MAX_OUT_SIDE=16384;
   try{ indexedDB.deleteDatabase('tensorflowjs'); }catch{}  // models of the removed TF.js engine
 
   // lightweight pixel buffer
   function makeImg(w,h,data){ return {width:w,height:h,data:data||new Uint8ClampedArray(w*h*4)}; }
 
-  function applyResult(img, w0, h0){
-    const tmp=document.createElement('canvas'); tmp.width=img.width; tmp.height=img.height;
-    tmp.getContext('2d').putImageData(new ImageData(img.data,img.width,img.height),0,0);
-    const fw=Math.round(w0*upscaleFactor), fh=Math.round(h0*upscaleFactor);
-    // downscale the 4x result to the target factor in halving steps to avoid aliasing (4x -> 2x -> 1.5x)
-    let src=tmp;
-    while(src.width/2>=fw && src.height/2>=fh && src.width>fw){
-      const half=document.createElement('canvas'); half.width=Math.round(src.width/2); half.height=Math.round(src.height/2);
-      const hctx=half.getContext('2d'); hctx.imageSmoothingEnabled=true; hctx.imageSmoothingQuality='high';
-      hctx.drawImage(src,0,0,half.width,half.height); src=half;
-    }
+  function applyResult(img){
+    const fw=img.width, fh=img.height;
     base.width=fw; base.height=fh; comp.width=fw; comp.height=fh;
-    bctx.imageSmoothingEnabled=true; bctx.imageSmoothingQuality='high';
-    bctx.clearRect(0,0,fw,fh); bctx.drawImage(src,0,0,src.width,src.height,0,0,fw,fh);
+    bctx.putImageData(new ImageData(img.data,fw,fh),0,0);
     operations=[]; redoStack=[];
     buildComposite(); resize(); fitView(); updateEditState();
   }
@@ -939,8 +932,6 @@
   function swinTileSize(t){ while((t-16)%12||(t-16)%16) t++; return t; }  // swin_unet tile constraint
   // Phones/tablets use 112px tiles: at 256 the model's intermediates reach ~84MB per tensor and
   // crashed iPhone Safari; 112 needs ~1/6 of that and gives visually identical output (no seams).
-  const IS_MOBILE=/Android|iPhone|iPad|iPod/.test(navigator.userAgent)
-    ||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);  // iPadOS reports as Mac
   const tileFor=(cfg,ep)=>swinTileSize(IS_MOBILE?112:cfg.tile[ep]);
   // Fixing the input size lets ORT fold the shape/mask subgraphs away at load time
   // (1702 -> 672 nodes); otherwise Mod/ConstantOfShape fall back to CPU on WebGPU every tile.
@@ -968,9 +959,49 @@
     return ortSessions[cfg.key]={session, ep, gpuError, tile:tileFor(cfg,ep)};
   }
 
+  // Area-averaging (box filter) downscale of the 4x output to fw x fh, fed one finished 4x row
+  // at a time in order, so the full 4x image never has to exist in memory.
+  function makeDownsampler(OW,OH,fw,fh){
+    const out=makeImg(fw,fh), od=out.data, rx=OW/fw, ry=OH/fh;
+    const ts=[], tw=[], tn=new Int32Array(fw+1), tinv=new Float32Array(fw);  // horizontal taps per output x
+    for(let x=0;x<fw;x++){
+      tn[x]=ts.length; const a=x*rx, b=Math.min((x+1)*rx,OW); let sum=0;
+      for(let sx=Math.floor(a);sx<b;sx++){ const w=Math.min(b,sx+1)-Math.max(a,sx); ts.push(sx); tw.push(w); sum+=w; }
+      tinv[x]=1/sum;
+    }
+    tn[fw]=ts.length;
+    const TS=Int32Array.from(ts), TW=Float32Array.from(tw), hrow=new Float32Array(fw*3);
+    const pend=new Map();  // output row -> {buf, w}: vertical accumulation
+    const put=(y,w)=>{
+      if(y>=fh||w<=0) return;
+      let r=pend.get(y); if(!r){ r={buf:new Float32Array(fw*3),w:0}; pend.set(y,r); }
+      const b=r.buf; for(let i=0;i<b.length;i++) b[i]+=hrow[i]*w; r.w+=w;
+    };
+    const flush=y=>{
+      const r=pend.get(y); if(!r) return; pend.delete(y);
+      const b=r.buf, k=255/r.w;  // Uint8ClampedArray stores with round-to-nearest
+      for(let x=0,o=y*fw*4;x<fw;x++,o+=4){ od[o]=b[x*3]*k; od[o+1]=b[x*3+1]*k; od[o+2]=b[x*3+2]*k; od[o+3]=255; }
+    };
+    return {
+      out,
+      row(gy,rgb){  // rgb: OW*3 floats in 0..1 for 4x row gy
+        for(let x=0;x<fw;x++){
+          let r=0,g=0,bl=0;
+          for(let t=tn[x];t<tn[x+1];t++){ const si=TS[t]*3, w=TW[t]; r+=rgb[si]*w; g+=rgb[si+1]*w; bl+=rgb[si+2]*w; }
+          const k=tinv[x]; hrow[x*3]=r*k; hrow[x*3+1]=g*k; hrow[x*3+2]=bl*k;
+        }
+        const y0=Math.floor(gy/ry), e0=(y0+1)*ry;
+        put(y0,Math.min(gy+1,e0)-Math.max(gy,y0*ry));
+        if(gy+1>e0) put(y0+1,gy+1-e0);
+        for(const y of [...pend.keys()]) if((y+1)*ry<=gy+1+1e-6) flush(y);
+      },
+      finish(){ for(const y of [...pend.keys()]) flush(y); }
+    };
+  }
+
   // waifu2x tiled rendering with seam blending (port of nunif/utils/seam_blending.py).
   // Output rows are finalized one tile row at a time, so the float buffers only span one tile row.
-  async function enlargeWaifu2x(src, sess, cfg){
+  async function enlargeWaifu2x(src, sess, cfg, fw, fh){
     const {scale, offset, blend}=cfg, W=src.width, H=src.height, OW=W*scale, OH=H*scale;
     const tile=sess.tile;
     const inOff=Math.ceil(offset/scale), inStep=tile-(inOff*2+Math.ceil(blend/scale));
@@ -985,7 +1016,8 @@
       const d=Math.min(x,y,T-1-x,T-1-y); filt[y*T+x]= d<blend ? (d+1)/(blend+1) : 1;
     }
     const plane=T*BW, acc=new Float32Array(plane*3), wsum=new Float32Array(plane);
-    const out=makeImg(OW,OH), tin=new Float32Array(3*tile*tile), tt=tile*tile, sd=src.data;
+    const ds=makeDownsampler(OW,OH,fw,fh), rgb=new Float32Array(OW*3);
+    const tin=new Float32Array(3*tile*tile), tt=tile*tile, sd=src.data;
     const edge=cfg.pad==='reflect'
       ? (i,n)=>{ if(n===1) return 0; const p=2*(n-1); i=((i%p)+p)%p; return i<n?i:p-i; }
       : (i,n)=>Math.min(Math.max(i,0),n-1);
@@ -1014,14 +1046,15 @@
         done++; setFill(done/total); progressText.textContent=`処理中… ${Math.round(done/total*100)}%`;
         await new Promise(r=>setTimeout(r));
       }
-      // write out the rows this tile row finalized, then shift the overlap to the top
-      const last=hi===hb-1, rows=last?T:outStep, base=hi*outStep, od=out.data;
+      // hand the rows this tile row finalized to the downsampler, then shift the overlap to the top
+      const last=hi===hb-1, rows=last?T:outStep, base=hi*outStep;
       for(let r=0;r<rows;r++){
         const gy=base+r; if(gy>=OH) break;
         for(let gx=0;gx<OW;gx++){
-          const bi=r*BW+gx, inv=255/wsum[bi], oi=(gy*OW+gx)*4;
-          od[oi]=acc[bi]*inv+0.5; od[oi+1]=acc[plane+bi]*inv+0.5; od[oi+2]=acc[2*plane+bi]*inv+0.5; od[oi+3]=255;
+          const bi=r*BW+gx, inv=1/wsum[bi], j=gx*3;
+          rgb[j]=Math.min(Math.max(acc[bi]*inv,0),1); rgb[j+1]=Math.min(Math.max(acc[plane+bi]*inv,0),1); rgb[j+2]=Math.min(Math.max(acc[2*plane+bi]*inv,0),1);
         }
+        ds.row(gy,rgb);
       }
       if(!last){
         const keep=(T-outStep)*BW;
@@ -1029,23 +1062,24 @@
         wsum.copyWithin(0,outStep*BW,plane); wsum.fill(0,keep,plane);
       }
     }
-    return out;
+    ds.finish();
+    return ds.out;
   }
 
-  async function upscaleWaifu2x(input, cfg){
+  async function upscaleWaifu2x(input, cfg, fw, fh){
     let sess=await getOrtSession(cfg,'');
     // when WebGPU was unusable, show why (shortened) so it can be reported
     const label=s=>`バックエンド: ${s.ep==='webgpu'?'WebGPU':'CPU (WASM)'} ／ ${upscaleFactor}×`
       +(s.ep!=='webgpu'&&s.gpuError?` ／ WebGPU不可: ${s.gpuError.slice(0,60)}`:'');
     progressText.textContent='処理中… 0%'; progressSub.textContent=label(sess); setFill(0);
-    try{ return await enlargeWaifu2x(input, sess, cfg); }
+    try{ return await enlargeWaifu2x(input, sess, cfg, fw, fh); }
     catch(err){
       if(sess.ep!=='webgpu') throw err;
       // WebGPU failed: retry on WASM
       console.warn('waifu2x: WebGPU run failed, retrying on WASM:',err);
       sess=await getOrtSession(cfg,String(err&&err.message||err));
       progressText.textContent='処理中… 0%'; progressSub.textContent=label(sess); setFill(0);
-      return await enlargeWaifu2x(input, sess, cfg);
+      return await enlargeWaifu2x(input, sess, cfg, fw, fh);
     }
   }
 
@@ -1053,20 +1087,20 @@
   let upscaling=false;
   upscaleBtn.addEventListener('click', async ()=>{
     if(!hasImage||upscaling) return;
-    if(comp.width>MAX_INPUT_DIM||comp.height>MAX_INPUT_DIM){
-      showProgress('画像が大きすぎます',`長辺 ${MAX_INPUT_DIM}px 以下の画像でお試しください（現在 ${comp.width}×${comp.height}）`);
-      setTimeout(hideProgress,3200); return;
+    const w0=comp.width, h0=comp.height, fw=Math.round(w0*upscaleFactor), fh=Math.round(h0*upscaleFactor);
+    if(fw*fh>MAX_OUT_PIXELS||Math.max(fw,fh)>MAX_OUT_SIDE){
+      showProgress('画像が大きすぎます',`出力の上限は約${Math.round(MAX_OUT_PIXELS/1e6)}MPです（現在 ${upscaleFactor}× で ${fw}×${fh}）。小さい倍率か画像でお試しください`);
+      setTimeout(hideProgress,3600); return;
     }
     upscaling=true; upscaleBtn.disabled=true;
     const cfg=MODELS[modelId];
     showProgress('AIエンジンを準備中…','ONNX Runtime を読み込んでいます');
     try{
       if(!await loadOrt()){ progressText.textContent='エンジンの読み込みに失敗'; progressSub.textContent='オンライン環境でお試しください'; setTimeout(hideProgress,2800); return; }
-      const w0=comp.width, h0=comp.height;
       const src=cctx.getImageData(0,0,w0,h0);
-      const result=await upscaleWaifu2x(makeImg(w0,h0,new Uint8ClampedArray(src.data)), cfg);
+      const result=await upscaleWaifu2x(makeImg(w0,h0,src.data), cfg, fw, fh);
       progressText.textContent='画像を生成中…';
-      applyResult(result, w0, h0);
+      applyResult(result);
       hideProgress();
     }catch(err){
       progressText.textContent='処理に失敗しました'; progressSub.textContent=String(err&&err.message||err).slice(0,120);
