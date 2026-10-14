@@ -839,10 +839,17 @@
   convertBtn.addEventListener('click',doConvert);
 
   /* ---------- upscale: accel detection ---------- */
-  async function detectAccel(){
-    if(navigator.gpu){
-      try{ const a=await navigator.gpu.requestAdapter(); if(a) return 'webgpu'; }catch{}
+  // Ask for the discrete GPU first, like TF.js does: on some multi-GPU PCs a plain
+  // requestAdapter() returns null while 'high-performance' returns the dGPU.
+  async function requestGpuAdapter(){
+    if(!navigator.gpu) return null;
+    for(const powerPreference of ['high-performance',undefined,'low-power']){
+      try{ const a=await navigator.gpu.requestAdapter(powerPreference?{powerPreference}:undefined); if(a) return a; }catch{}
     }
+    return null;
+  }
+  async function detectAccel(){
+    if(await requestGpuAdapter()) return 'webgpu';
     try{ const c=document.createElement('canvas'); if(c.getContext('webgl2')||c.getContext('webgl')) return 'webgl'; }catch{}
     return 'none';
   }
@@ -1052,17 +1059,24 @@
     return ort.InferenceSession.create(bytes,{ executionProviders:[ep],
       freeDimensionOverrides:{ batch_size:1, input_height:tile, input_width:tile } });
   }
-  async function getOrtSession(cfg, forceWasm){
+  async function getOrtSession(cfg, wasmReason){  // wasmReason: non-empty forces WASM
     const cached=ortSessions[cfg.key];
-    if(cached&&!(forceWasm&&cached.ep!=='wasm')) return cached;
+    if(cached&&!(wasmReason&&cached.ep!=='wasm')) return cached;
     const bytes=await fetchModelBytes(cfg.url);
     progressText.textContent='モデルを準備中…';
-    let session=null, ep='wasm';
-    if(!forceWasm&&navigator.gpu){
-      try{ session=await createSession(bytes,'webgpu',swinTileSize(cfg.tile.webgpu)); ep='webgpu'; }catch{ session=null; }
+    let session=null, ep='wasm', gpuError=wasmReason||'';
+    if(!wasmReason&&navigator.gpu){
+      try{
+        if(!ort.env.webgpu.adapter){
+          const adapter=await requestGpuAdapter();
+          if(!adapter) throw new Error('GPU adapter not found');
+          ort.env.webgpu.adapter=adapter;
+        }
+        session=await createSession(bytes,'webgpu',swinTileSize(cfg.tile.webgpu)); ep='webgpu';
+      }catch(e){ session=null; gpuError=String(e&&e.message||e); console.warn('waifu2x: WebGPU unavailable, using WASM:',e); }
     }
     if(!session){ session=await createSession(bytes,'wasm',swinTileSize(cfg.tile.wasm)); ep='wasm'; }
-    return ortSessions[cfg.key]={session, ep, tile:swinTileSize(cfg.tile[ep])};
+    return ortSessions[cfg.key]={session, ep, gpuError, tile:swinTileSize(cfg.tile[ep])};
   }
 
   // waifu2x tiled rendering with seam blending (port of nunif/utils/seam_blending.py).
@@ -1127,15 +1141,18 @@
   }
 
   async function upscaleWaifu2x(input, cfg){
-    let sess=await getOrtSession(cfg,false);
-    const label=ep=>`バックエンド: ${ep==='webgpu'?'WebGPU':'CPU (WASM)'} ／ ${upscaleFactor}×`;
-    progressText.textContent='処理中… 0%'; progressSub.textContent=label(sess.ep); setFill(0);
+    let sess=await getOrtSession(cfg,'');
+    // when WebGPU was unusable, show why (shortened) so it can be reported
+    const label=s=>`バックエンド: ${s.ep==='webgpu'?'WebGPU':'CPU (WASM)'} ／ ${upscaleFactor}×`
+      +(s.ep!=='webgpu'&&s.gpuError?` ／ WebGPU不可: ${s.gpuError.slice(0,60)}`:'');
+    progressText.textContent='処理中… 0%'; progressSub.textContent=label(sess); setFill(0);
     try{ return await enlargeWaifu2x(input, sess, cfg); }
     catch(err){
       if(sess.ep!=='webgpu') throw err;
       // WebGPU failed: retry on WASM
-      sess=await getOrtSession(cfg,true);
-      progressText.textContent='処理中… 0%'; progressSub.textContent=label(sess.ep); setFill(0);
+      console.warn('waifu2x: WebGPU run failed, retrying on WASM:',err);
+      sess=await getOrtSession(cfg,String(err&&err.message||err));
+      progressText.textContent='処理中… 0%'; progressSub.textContent=label(sess); setFill(0);
       return await enlargeWaifu2x(input, sess, cfg);
     }
   }
