@@ -873,7 +873,8 @@
 
   /* ---------- model registry ---------- */
   // waifu2x swin_unet 4x models (nunif, MIT), exported to ONNX with nunif's exporter.
-  // pad: edge padding the official web app uses per style; photo models need tiles >= 256.
+  // pad: edge padding the official web app uses per style. tile: per backend on desktop (the official
+  // app recommends >= 256 for photo); mobile overrides it, see tileFor().
   const MODELS={
     photo:  { url:'models/waifu2x-photo/noise1_scale4x.onnx', key:'waifu2x-photo-noise1-4x', pad:'reflect',
               scale:4, offset:32, blend:16, tile:{ webgpu:256, wasm:256 } },
@@ -936,6 +937,11 @@
   }
 
   function swinTileSize(t){ while((t-16)%12||(t-16)%16) t++; return t; }  // swin_unet tile constraint
+  // Phones/tablets use 112px tiles: at 256 the model's intermediates reach ~84MB per tensor and
+  // crashed iPhone Safari; 112 needs ~1/6 of that and gives visually identical output (no seams).
+  const IS_MOBILE=/Android|iPhone|iPad|iPod/.test(navigator.userAgent)
+    ||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);  // iPadOS reports as Mac
+  const tileFor=(cfg,ep)=>swinTileSize(IS_MOBILE?112:cfg.tile[ep]);
   // Fixing the input size lets ORT fold the shape/mask subgraphs away at load time
   // (1702 -> 672 nodes); otherwise Mod/ConstantOfShape fall back to CPU on WebGPU every tile.
   function createSession(bytes, ep, tile){
@@ -955,11 +961,11 @@
           if(!adapter) throw new Error('GPU adapter not found');
           ort.env.webgpu.adapter=adapter;
         }
-        session=await createSession(bytes,'webgpu',swinTileSize(cfg.tile.webgpu)); ep='webgpu';
+        session=await createSession(bytes,'webgpu',tileFor(cfg,'webgpu')); ep='webgpu';
       }catch(e){ session=null; gpuError=String(e&&e.message||e); console.warn('waifu2x: WebGPU unavailable, using WASM:',e); }
     }
-    if(!session){ session=await createSession(bytes,'wasm',swinTileSize(cfg.tile.wasm)); ep='wasm'; }
-    return ortSessions[cfg.key]={session, ep, gpuError, tile:swinTileSize(cfg.tile[ep])};
+    if(!session){ session=await createSession(bytes,'wasm',tileFor(cfg,'wasm')); ep='wasm'; }
+    return ortSessions[cfg.key]={session, ep, gpuError, tile:tileFor(cfg,ep)};
   }
 
   // waifu2x tiled rendering with seam blending (port of nunif/utils/seam_blending.py).
