@@ -96,7 +96,7 @@
   .uppanel.show{display:flex;}
   .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:6px 11px;border-radius:99px;}
   .badge.gpu{background:#E7F8EE;color:#1B7A43;}
-  .badge.webgl{background:#FFF4E0;color:#9A6700;}
+  .badge.cpu{background:#FFF4E0;color:#9A6700;}
   .badge.none{background:#FCE8E8;color:#B42318;}
   .badge .dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
   .up-actions{margin-left:auto;display:flex;gap:8px;}
@@ -227,9 +227,8 @@
     <div class="group">
       <span class="group-label">モデル</span>
       <div class="seg" id="modelSeg">
-        <button data-model="general" class="on">標準</button>
-        <button data-model="plus">高品質</button>
-        <button data-model="anime">イラスト</button>
+        <button data-model="photo" class="on">写真</button>
+        <button data-model="illust">イラスト</button>
       </div>
     </div>
     <div class="group">
@@ -332,7 +331,7 @@
   let effect='pixelate', mode='rect';
   let selStickerIdx=-1;   // index in operations of currently selected sticker (-1 = none)
   let fillColor='#000000';  // current ベタ塗り color ("color to paint next")
-  let upscaleFactor=2, accelTier=null, engineState='idle', backend=null;
+  let upscaleFactor=2, accelTier=null;
   let outFormat='jpg';
 
   // layers
@@ -839,8 +838,7 @@
   convertBtn.addEventListener('click',doConvert);
 
   /* ---------- upscale: accel detection ---------- */
-  // Ask for the discrete GPU first, like TF.js does: on some multi-GPU PCs a plain
-  // requestAdapter() returns null while 'high-performance' returns the dGPU.
+  // Prefer the discrete GPU on multi-GPU PCs, then fall back to any adapter.
   async function requestGpuAdapter(){
     if(!navigator.gpu) return null;
     for(const powerPreference of ['high-performance',undefined,'low-power']){
@@ -848,16 +846,11 @@
     }
     return null;
   }
-  async function detectAccel(){
-    if(await requestGpuAdapter()) return 'webgpu';
-    try{ const c=document.createElement('canvas'); if(c.getContext('webgl2')||c.getContext('webgl')) return 'webgl'; }catch{}
-    return 'none';
-  }
+  async function detectAccel(){ return (await requestGpuAdapter()) ? 'webgpu' : 'cpu'; }
   function setAccelBadge(tier){
-    accelTier=tier; accelBadge.classList.remove('gpu','webgl','none');
+    accelTier=tier; accelBadge.classList.remove('gpu','cpu','none');
     if(tier==='webgpu'){ accelBadge.classList.add('gpu'); accelText.textContent='WebGPU 加速'; }
-    else if(tier==='webgl'){ accelBadge.classList.add('webgl'); accelText.textContent='WebGL 加速'; }
-    else{ accelBadge.classList.add('none'); accelText.textContent='GPU非対応'; }
+    else{ accelBadge.classList.add('cpu'); accelText.textContent='CPU 処理'; }
   }
 
   /* ---------- progress overlay ---------- */
@@ -865,29 +858,8 @@
   function setFill(p){ progressFill.style.width=Math.round(p*100)+'%'; }
   function hideProgress(){ progress.classList.remove('show'); }
 
-  /* ---------- AI engine loader (TensorFlow.js) ---------- */
+  /* ---------- script loader ---------- */
   function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('script load failed: '+src)); document.head.appendChild(s); }); }
-  async function loadEngine(){
-    if(engineState==='ready') return true;
-    engineState='loading';
-    showProgress('AIエンジンを準備中…','TensorFlow.js を読み込んでいます');
-    try{
-      const V='4.22.0';
-      if(!window.tf){ await loadScript(`https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@${V}/dist/tf.min.js`); }
-      setFill(0.5);
-      backend=null;
-      // tf.setBackend() reports a failed init by resolving to false (it does not throw)
-      const use=async name=>{ try{ if(await tf.setBackend(name)){ await tf.ready(); backend=name; } }catch{} return !!backend; };
-      if(navigator.gpu){
-        try{ await loadScript(`https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@${V}/dist/tf-backend-webgpu.min.js`); await use('webgpu'); }catch{}
-      }
-      if(!backend&&!await use('webgl')) await use('cpu');
-      setFill(1);
-      engineState = backend ? 'ready' : 'failed';
-      tf.io.removeModel('indexeddb://realesrgan-anime').catch(()=>{});  // drop the replaced illustration model
-      return engineState==='ready';
-    }catch(e){ engineState='failed'; return false; }
-  }
 
   /* ---------- scale selector ---------- */
   modelSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
@@ -899,110 +871,25 @@
     upscaleFactor=parseFloat(b.dataset.scale);
   }));
 
-  /* ---------- M5b/M5c: model registry + tiled inference ---------- */
+  /* ---------- model registry ---------- */
+  // waifu2x swin_unet 4x models (nunif, MIT), exported to ONNX with nunif's exporter.
+  // pad: edge padding the official web app uses per style; photo models need tiles >= 256.
   const MODELS={
-    general:{ url:'models/realesrgan-general/model.json', key:'realesrgan-general', tile:64,  minLap:12 },
-    plus:   { url:'models/realesrgan-x4plus/model.json',  key:'realesrgan-x4plus',  tile:128, minLap:16 },
-    // illustration: waifu2x swin_unet art (noise0, 4x), exported to ONNX with nunif's (MIT) exporter
-    anime:  { runtime:'ort', url:'models/waifu2x-art/noise0_scale4x.onnx', key:'waifu2x-art-noise0-4x',
+    photo:  { url:'models/waifu2x-photo/noise1_scale4x.onnx', key:'waifu2x-photo-noise1-4x', pad:'reflect',
+              scale:4, offset:32, blend:16, tile:{ webgpu:256, wasm:256 } },
+    illust: { url:'models/waifu2x-art/noise0_scale4x.onnx',   key:'waifu2x-art-noise0-4x',   pad:'replicate',
               scale:4, offset:32, blend:16, tile:{ webgpu:256, wasm:112 } }
   };
-  let modelId='general';
-  const NATIVE_FACTOR=4, MAX_INPUT_DIM=1536;
-  const loadedModels={};  // key -> tf.GraphModel
+  let modelId='photo';
+  const MAX_INPUT_DIM=1536;
+  try{ indexedDB.deleteDatabase('tensorflowjs'); }catch{}  // models of the removed TF.js engine
 
-  async function loadModel(){
-    const m=MODELS[modelId];
-    if(loadedModels[m.key]) return loadedModels[m.key];
-    let mdl;
-    try{ mdl=await tf.loadGraphModel(`indexeddb://${m.key}`); }
-    catch{
-      progressText.textContent='モデルをダウンロード中…';
-      mdl=await tf.loadGraphModel(m.url);
-      try{ await mdl.save(`indexeddb://${m.key}`); }catch{}
-    }
-    loadedModels[m.key]=mdl;
-    return mdl;
-  }
-
-  // lightweight pixel buffer (ported from reference Img)
+  // lightweight pixel buffer
   function makeImg(w,h,data){ return {width:w,height:h,data:data||new Uint8ClampedArray(w*h*4)}; }
-  function blit(dst,dx,dy,src,x1,y1,x2,y2){
-    for(let j=0;j<y2-y1;j++){
-      const yy=dy+j, sy=y1+j;
-      if(yy<0||yy>=dst.height||sy<0||sy>=src.height) continue;
-      for(let i=0;i<x2-x1;i++){
-        const xx=dx+i, sx=x1+i;
-        if(xx<0||xx>=dst.width||sx<0||sx>=src.width) continue;
-        const di=(yy*dst.width+xx)*4, si=(sy*src.width+sx)*4;
-        dst.data[di]=src.data[si]; dst.data[di+1]=src.data[si+1]; dst.data[di+2]=src.data[si+2]; dst.data[di+3]=255;
-      }
-    }
-  }
-  function padToTile(img,ts){
-    const nw=Math.max(ts,img.width), nh=Math.max(ts,img.height);
-    if(nw===img.width&&nh===img.height) return img;
-    const o=makeImg(nw,nh); blit(o,0,0,img,0,0,img.width,img.height); return o;
-  }
-
-  async function upscaleTile(tileImg, mdl){
-    const result=tf.tidy(()=>{
-      const id=new ImageData(new Uint8ClampedArray(tileImg.data),tileImg.width,tileImg.height);
-      const t=tf.browser.fromPixels(id).div(255).toFloat().expandDims();
-      return mdl.predict(t);
-    });
-    const [,h,w]=result.shape;
-    const clipped=tf.tidy(()=>result.reshape([h,w,3]).mul(255).cast('int32').clipByValue(0,255));
-    result.dispose();
-    const px=await tf.browser.toPixels(clipped);
-    clipped.dispose();
-    return makeImg(w,h,px);
-  }
-
-  // tiled enlargement (ported from reference worker; no-alpha path)
-  async function enlarge(input, mdl){
-    const cfg=MODELS[modelId];
-    const width=input.width, height=input.height, factor=NATIVE_FACTOR, input_size=cfg.tile, min_lap=cfg.minLap;
-    const out=makeImg(width*factor,height*factor);
-    let num_x=1; for(;(input_size*num_x-width)/(num_x-1)<min_lap;num_x++);
-    let num_y=1; for(;(input_size*num_y-height)/(num_y-1)<min_lap;num_y++);
-    const locs_x=new Array(num_x), locs_y=new Array(num_y);
-    const pad_left=new Array(num_x), pad_top=new Array(num_y), pad_right=new Array(num_x), pad_bottom=new Array(num_y);
-    const total_lap_x=input_size*num_x-width, total_lap_y=input_size*num_y-height;
-    const base_lap_x=Math.floor(total_lap_x/(num_x-1)), base_lap_y=Math.floor(total_lap_y/(num_y-1));
-    const extra_lap_x=total_lap_x-base_lap_x*(num_x-1), extra_lap_y=total_lap_y-base_lap_y*(num_y-1);
-    locs_x[0]=0;
-    for(let i=1;i<num_x;i++) locs_x[i]=locs_x[i-1]+input_size-base_lap_x-(i<=extra_lap_x?1:0);
-    locs_y[0]=0;
-    for(let i=1;i<num_y;i++) locs_y[i]=locs_y[i-1]+input_size-base_lap_y-(i<=extra_lap_y?1:0);
-    pad_left[0]=0; pad_top[0]=0; pad_right[num_x-1]=0; pad_bottom[num_y-1]=0;
-    for(let i=1;i<num_x;i++) pad_left[i]=Math.floor((locs_x[i-1]+input_size-locs_x[i])/2);
-    for(let i=1;i<num_y;i++) pad_top[i]=Math.floor((locs_y[i-1]+input_size-locs_y[i])/2);
-    for(let i=0;i<num_x-1;i++) pad_right[i]=locs_x[i]+input_size-locs_x[i+1]-pad_left[i+1];
-    for(let i=0;i<num_y-1;i++) pad_bottom[i]=locs_y[i]+input_size-locs_y[i+1]-pad_top[i+1];
-    const total=num_x*num_y; let current=0;
-    for(let i=0;i<num_x;i++){
-      for(let j=0;j<num_y;j++){
-        const x1=locs_x[i], y1=locs_y[j];
-        const tile=makeImg(input_size,input_size);
-        blit(tile,0,0,input,x1,y1,x1+input_size,y1+input_size);
-        const scaled=await upscaleTile(tile, mdl);
-        blit(out,(x1+pad_left[i])*factor,(y1+pad_top[j])*factor,scaled,
-             pad_left[i]*factor,pad_top[j]*factor,
-             scaled.width-pad_right[i]*factor,scaled.height-pad_bottom[j]*factor);
-        current++;
-        setFill(current/total); progressText.textContent=`処理中… ${Math.round(current/total*100)}%`;
-        if(current%2===0) await new Promise(r=>setTimeout(r));
-      }
-    }
-    return out;
-  }
 
   function applyResult(img, w0, h0){
-    const cropW=w0*NATIVE_FACTOR, cropH=h0*NATIVE_FACTOR;
-    const cropped=makeImg(cropW,cropH); blit(cropped,0,0,img,0,0,cropW,cropH);
-    const tmp=document.createElement('canvas'); tmp.width=cropW; tmp.height=cropH;
-    tmp.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(cropped.data),cropW,cropH),0,0);
+    const tmp=document.createElement('canvas'); tmp.width=img.width; tmp.height=img.height;
+    tmp.getContext('2d').putImageData(new ImageData(img.data,img.width,img.height),0,0);
     const fw=Math.round(w0*upscaleFactor), fh=Math.round(h0*upscaleFactor);
     // downscale the 4x result to the target factor in halving steps to avoid aliasing (4x -> 2x -> 1.5x)
     let src=tmp;
@@ -1093,15 +980,18 @@
     }
     const plane=T*BW, acc=new Float32Array(plane*3), wsum=new Float32Array(plane);
     const out=makeImg(OW,OH), tin=new Float32Array(3*tile*tile), tt=tile*tile, sd=src.data;
+    const edge=cfg.pad==='reflect'
+      ? (i,n)=>{ if(n===1) return 0; const p=2*(n-1); i=((i%p)+p)%p; return i<n?i:p-i; }
+      : (i,n)=>Math.min(Math.max(i,0),n-1);
     const total=hb*wb; let done=0;
     for(let hi=0;hi<hb;hi++){
       for(let wi=0;wi<wb;wi++){
-        // input tile with replication padding: RGBA -> CHW float
+        // input tile with edge padding: RGBA -> CHW float
         const iy=hi*inStep-inOff, ix=wi*inStep-inOff;
         for(let y=0;y<tile;y++){
-          const sy=Math.min(Math.max(iy+y,0),H-1);
+          const sy=edge(iy+y,H);
           for(let x=0;x<tile;x++){
-            const sx=Math.min(Math.max(ix+x,0),W-1), si=(sy*W+sx)*4, ti=y*tile+x;
+            const sx=edge(ix+x,W), si=(sy*W+sx)*4, ti=y*tile+x;
             tin[ti]=sd[si]/255; tin[tt+ti]=sd[si+1]/255; tin[2*tt+ti]=sd[si+2]/255;
           }
         }
@@ -1153,7 +1043,7 @@
     }
   }
 
-  /* ---------- upscale button (M5b) ---------- */
+  /* ---------- upscale button ---------- */
   let upscaling=false;
   upscaleBtn.addEventListener('click', async ()=>{
     if(!hasImage||upscaling) return;
@@ -1162,22 +1052,13 @@
       setTimeout(hideProgress,3200); return;
     }
     upscaling=true; upscaleBtn.disabled=true;
-    const cfg=MODELS[modelId], useOrt=cfg.runtime==='ort';
-    showProgress('AIエンジンを準備中…', useOrt?'ONNX Runtime を読み込んでいます':'TensorFlow.js を読み込んでいます');
+    const cfg=MODELS[modelId];
+    showProgress('AIエンジンを準備中…','ONNX Runtime を読み込んでいます');
     try{
-      if(!await (useOrt?loadOrt():loadEngine())){ progressText.textContent='エンジンの読み込みに失敗'; progressSub.textContent='オンライン環境でお試しください'; setTimeout(hideProgress,2800); return; }
+      if(!await loadOrt()){ progressText.textContent='エンジンの読み込みに失敗'; progressSub.textContent='オンライン環境でお試しください'; setTimeout(hideProgress,2800); return; }
       const w0=comp.width, h0=comp.height;
       const src=cctx.getImageData(0,0,w0,h0);
-      let input=makeImg(w0,h0,new Uint8ClampedArray(src.data)), result;
-      if(useOrt){
-        result=await upscaleWaifu2x(input, cfg);
-      }else{
-        progressText.textContent='モデルを準備中…'; progressSub.textContent=`バックエンド: ${backend} ／ ${upscaleFactor}×`;
-        const mdl=await loadModel();
-        input=padToTile(input,cfg.tile);
-        progressText.textContent='処理中… 0%'; setFill(0);
-        result=await enlarge(input, mdl);
-      }
+      const result=await upscaleWaifu2x(makeImg(w0,h0,new Uint8ClampedArray(src.data)), cfg);
       progressText.textContent='画像を生成中…';
       applyResult(result, w0, h0);
       hideProgress();
