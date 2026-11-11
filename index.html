@@ -41,7 +41,7 @@
   .toolpanel{flex:none;margin:14px 20px 0;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;display:none;flex-wrap:wrap;align-items:center;gap:10px 18px;}
   .toolpanel.show{display:flex;}
   .group{display:flex;align-items:center;gap:8px;}
-  .group-label{font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.04em;}
+  .group-label{font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.04em;white-space:nowrap;}
   .seg{display:flex;gap:3px;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:3px;}
   .seg button{appearance:none;border:none;cursor:pointer;font-family:var(--font);font-size:13px;font-weight:700;color:var(--ink-soft);background:transparent;padding:7px 13px;border-radius:7px;transition:color .15s,background .15s;}
   .seg button.on{color:#fff;background:var(--accent);}
@@ -100,6 +100,12 @@
   .badge.none{background:#FCE8E8;color:#B42318;}
   .badge .dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
   .up-actions{margin-left:auto;display:flex;gap:8px;}
+  /* convert: target size + output size readout */
+  .target{display:flex;align-items:center;gap:6px;}
+  .target input{width:72px;padding:7px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;font-weight:700;color:var(--ink);background:var(--bg);}
+  .target span{font-size:12px;font-weight:700;color:var(--ink-soft);white-space:nowrap;}
+  .sizeinfo{font-size:12px;color:var(--ink-soft);line-height:1.5;}
+  .sizeinfo b{color:var(--accent-deep);font-variant-numeric:tabular-nums;}
 
   /* progress overlay */
   .progress{position:absolute;inset:0;z-index:6;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(26,19,32,.6);backdrop-filter:blur(4px);padding:32px;text-align:center;}
@@ -113,6 +119,7 @@
     .uppanel{gap:10px;}
     .up-actions{margin-left:0;flex:1;}
     .up-actions .btn{flex:1;justify-content:center;}
+    .sizeinfo{flex-basis:100%;}
   }
 
   main{flex:1;min-height:0;padding:14px 20px;display:flex;}
@@ -259,6 +266,15 @@
       <input type="range" id="quality" min="50" max="100" value="92" step="1">
       <span class="val" id="qualityVal">92</span>
     </div>
+    <div class="group" id="targetCtl">
+      <span class="group-label">目標サイズ</span>
+      <div class="target">
+        <input type="number" id="targetMB" min="0.1" step="0.1" inputmode="decimal" placeholder="例: 10">
+        <span>MB 以下</span>
+        <button class="btn btn-ghost btn-sm" id="targetBtn">自動調整</button>
+      </div>
+    </div>
+    <div class="sizeinfo" id="sizeInfo"></div>
     <div class="up-actions">
       <button class="btn btn-primary btn-sm" id="convertBtn">変換して保存</button>
     </div>
@@ -326,8 +342,10 @@
   const uppanel=$('uppanel'), scaleSeg=$('scaleSeg'), modelSeg=$('modelSeg'), accelBadge=$('accelBadge'), accelText=$('accelText'), upscaleBtn=$('upscaleBtn');
   const progress=$('progress'), progressText=$('progressText'), progressFill=$('progressFill'), progressSub=$('progressSub');
   const convpanel=$('convpanel'), formatSeg=$('formatSeg'), qualityCtl=$('qualityCtl'), quality=$('quality'), qualityVal=$('qualityVal'), convertBtn=$('convertBtn');
+  const targetCtl=$('targetCtl'), targetMB=$('targetMB'), targetBtn=$('targetBtn'), sizeInfo=$('sizeInfo');
 
-  let currentTab='mosaic', hasImage=false, sourceName='image';
+  let currentTab='mosaic', hasImage=false, sourceName='image', sourceBytes=0;
+  let compVersion=0;  // bumped on every composite rebuild; keys the cached output encode
   let effect='pixelate', mode='rect';
   let selStickerIdx=-1;   // index in operations of currently selected sticker (-1 = none)
   let fillColor='#000000';  // current ベタ塗り color ("color to paint next")
@@ -432,6 +450,7 @@
   }
 
   function buildComposite(){
+    compVersion++;
     cctx.setTransform(1,0,0,1,0,0); cctx.imageSmoothingEnabled=true;
     cctx.clearRect(0,0,comp.width,comp.height); cctx.drawImage(base,0,0);
     for(const op of operations) applyOp(op);
@@ -750,13 +769,14 @@
     else if(up) hint.innerHTML='倍率を選んで「画質を上げる」（移動・拡大も可能）';
     else hint.innerHTML='形式を選んで「変換して保存」（現在の画像をそのまま変換します）';
     setCursor(); updateEditState();
+    if(hasImage&&cv) scheduleEstimate();
     if(hasImage&&up&&!accelChecked){ accelChecked=true; detectAccel().then(setAccelBadge); }
   }
 
   /* ---------- load ---------- */
   function loadFile(file){
     if(!file||!file.type.startsWith('image/')) return;
-    sourceName=(file.name||'image').replace(/\.[^.]+$/,'');
+    sourceName=(file.name||'image').replace(/\.[^.]+$/,''); sourceBytes=file.size||0;
     const url=URL.createObjectURL(file), img=new Image();
     img.onload=()=>{
       base.width=img.naturalWidth; base.height=img.naturalHeight;
@@ -801,33 +821,101 @@
     formatSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
     outFormat=b.dataset.fmt;
     qualityCtl.style.display = outFormat==='jpg' ? 'flex' : 'none';
+    targetCtl.style.display = outFormat==='jpg' ? 'flex' : 'none';
+    scheduleEstimate();
   }));
-  quality.addEventListener('input',()=>qualityVal.textContent=quality.value);
+  quality.addEventListener('input',()=>{ qualityVal.textContent=quality.value; scheduleEstimate(); });
 
-  async function doConvert(){
-    if(!hasImage) return;
-    let blob, fname, mime;
-    if(outFormat==='svg'){
+  // Encode the current image exactly as it will be saved. q: JPG quality 50..100.
+  async function encodeOutput(fmt,q){
+    if(fmt==='svg'){
       // SVG wrapper: embeds the image as-is (still pixel data, but a valid .svg file)
       const dataUrl=comp.toDataURL('image/png');
       const svg=`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${comp.width}" height="${comp.height}" viewBox="0 0 ${comp.width} ${comp.height}">`
         +`<image width="${comp.width}" height="${comp.height}" xlink:href="${dataUrl}"/></svg>`;
-      mime='image/svg+xml';
-      blob=new Blob([svg],{type:mime});
-      fname=`${sourceName}.svg`;
-    }else{
-      let out=comp;
-      // JPG has no alpha: flatten onto white so transparent areas don't turn black
-      if(outFormat==='jpg'){
-        const flat=document.createElement('canvas'); flat.width=comp.width; flat.height=comp.height;
-        const fx=flat.getContext('2d'); fx.fillStyle='#fff'; fx.fillRect(0,0,flat.width,flat.height); fx.drawImage(comp,0,0);
-        out=flat;
+      return new Blob([svg],{type:'image/svg+xml'});
+    }
+    let out=comp;
+    // JPG has no alpha: flatten onto white so transparent areas don't turn black
+    if(fmt==='jpg'){
+      const flat=document.createElement('canvas'); flat.width=comp.width; flat.height=comp.height;
+      const fx=flat.getContext('2d'); fx.fillStyle='#fff'; fx.fillRect(0,0,flat.width,flat.height); fx.drawImage(comp,0,0);
+      out=flat;
+    }
+    return new Promise(res=>out.toBlob(res, fmt==='jpg'?'image/jpeg':'image/png', fmt==='jpg'?q/100:undefined));
+  }
+  // one cached encode per (image state, format, quality), shared by the readout and the save button
+  let encCache=null;
+  const encKey=(fmt,q)=>`${compVersion}|${fmt}|${fmt==='jpg'?q:''}`;
+  async function getEncoded(fmt,q){
+    const key=encKey(fmt,q);
+    if(encCache&&encCache.key===key) return encCache.blob;
+    const blob=await encodeOutput(fmt,q);
+    if(blob) encCache={key,blob};
+    return blob;
+  }
+
+  // sizes in decimal MB/KB (as macOS/iOS show them; the stricter reading for upload limits)
+  const fmtSize=n=> n>=1e6 ? (n/1e6).toFixed(n>=1e7?1:2)+'MB' : Math.max(1,Math.round(n/1e3))+'KB';
+  function showSize(n){
+    let html=`出力サイズ <b>${fmtSize(n)}</b>`;
+    if(sourceBytes){
+      const pct=Math.round((n/sourceBytes-1)*100);
+      html+=`（読込ファイル ${fmtSize(sourceBytes)} から ${pct>0?'+':pct<0?'−':'±'}${Math.abs(pct)}%）`;
+    }
+    sizeInfo.innerHTML=html;
+  }
+  let estTimer=0, estGen=0, tuning=false;
+  function scheduleEstimate(){
+    if(!hasImage||currentTab!=='convert'||tuning) return;
+    clearTimeout(estTimer); estGen++;
+    sizeInfo.textContent='出力サイズを計算中…';
+    estTimer=setTimeout(async ()=>{
+      const gen=estGen, blob=await getEncoded(outFormat,parseInt(quality.value,10));
+      if(gen!==estGen) return;  // settings changed meanwhile
+      if(blob) showSize(blob.size); else sizeInfo.textContent='出力サイズを計算できませんでした';
+    },300);
+  }
+
+  // highest JPG quality (50..100) whose file fits the target; binary search, ~6 encodes
+  targetBtn.addEventListener('click', async ()=>{
+    if(!hasImage||tuning) return;
+    const mb=parseFloat(targetMB.value);
+    if(!(mb>0)){ sizeInfo.textContent='目標サイズを MB で入力してください（例: 10）'; targetMB.focus(); return; }
+    const limit=mb*1e6;
+    tuning=true; targetBtn.disabled=convertBtn.disabled=true; clearTimeout(estTimer); estGen++;
+    try{
+      let lo=50, hi=100, best=null, bestBlob=null, minBlob=null;
+      while(lo<=hi){
+        const mid=(lo+hi)>>1;
+        sizeInfo.textContent=`自動調整中… 画質 ${mid} を試しています`;
+        const blob=await encodeOutput('jpg',mid);
+        if(!blob){ sizeInfo.textContent='出力サイズを計算できませんでした'; return; }
+        if(mid===50) minBlob=blob;
+        if(blob.size<=limit){ best=mid; bestBlob=blob; lo=mid+1; } else hi=mid-1;
       }
+      if(best===null){
+        if(!minBlob) minBlob=await encodeOutput('jpg',50);
+        sizeInfo.innerHTML=`画質 50 でも <b>${fmtSize(minBlob.size)}</b> になり、${fmtSize(limit)} 以下にできません。画像サイズを小さくしてください`;
+        return;
+      }
+      quality.value=best; qualityVal.textContent=best;
+      encCache={key:encKey('jpg',best),blob:bestBlob};
+      showSize(bestBlob.size);
+      sizeInfo.innerHTML+=` ／ ${fmtSize(limit)} 以下で最高の画質 <b>${best}</b> に設定しました`;
+    }finally{ tuning=false; targetBtn.disabled=convertBtn.disabled=false; }
+  });
+
+  async function doConvert(){
+    if(!hasImage||tuning) return;
+    let blob, fname, mime;
+    if(outFormat==='svg'){
+      mime='image/svg+xml'; fname=`${sourceName}.svg`;
+    }else{
       mime = outFormat==='jpg' ? 'image/jpeg' : 'image/png';
-      const q = outFormat==='jpg' ? parseInt(quality.value,10)/100 : undefined;
-      blob=await new Promise(res=>out.toBlob(res,mime,q)); if(!blob) return;
       fname=`${sourceName}.${outFormat==='jpg'?'jpg':'png'}`;
     }
+    blob=await getEncoded(outFormat,parseInt(quality.value,10)); if(!blob) return;
     const file=new File([blob],fname,{type:mime});
     if(useShareSheet(file)){
       try{ await navigator.share({files:[file]}); return; }catch(err){ if(err&&err.name==='AbortError') return; }
