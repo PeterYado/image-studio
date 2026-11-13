@@ -36,6 +36,7 @@
   .tabs{display:flex;gap:4px;background:var(--surface);padding:4px;border-radius:12px;border:1px solid var(--line);width:fit-content;}
   .tab{appearance:none;border:none;cursor:pointer;font-family:var(--font);font-size:14px;font-weight:700;color:var(--ink-soft);background:transparent;padding:9px 22px;border-radius:9px;transition:color .18s,background .18s;letter-spacing:.02em;}
   .tab.active{color:#fff;background:var(--accent);}
+  .tab:disabled{opacity:.35;cursor:not-allowed;}
 
   /* tool panel */
   .toolpanel{flex:none;margin:14px 20px 0;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;display:none;flex-wrap:wrap;align-items:center;gap:10px 18px;}
@@ -106,6 +107,11 @@
   .target span{font-size:12px;font-weight:700;color:var(--ink-soft);white-space:nowrap;}
   .sizeinfo{font-size:12px;color:var(--ink-soft);line-height:1.5;}
   .sizeinfo b{color:var(--accent-deep);font-variant-numeric:tabular-nums;}
+  /* pdf panel */
+  .pager{display:flex;align-items:center;gap:6px;}
+  .pager span{font-size:13px;font-weight:700;color:var(--ink);min-width:52px;text-align:center;font-variant-numeric:tabular-nums;}
+  .pdf-text input{width:240px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px;color:var(--ink);background:var(--bg);}
+  .pdf-note{font-size:13px;color:var(--ink-soft);}
 
   /* progress overlay */
   .progress{position:absolute;inset:0;z-index:6;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(26,19,32,.6);backdrop-filter:blur(4px);padding:32px;text-align:center;}
@@ -120,6 +126,8 @@
     .up-actions{margin-left:0;flex:1;}
     .up-actions .btn{flex:1;justify-content:center;}
     .sizeinfo{flex-basis:100%;}
+    .pdf-text{flex-basis:100%;}
+    .pdf-text input{flex:1;width:auto;min-width:0;}
   }
 
   main{flex:1;min-height:0;padding:14px 20px;display:flex;}
@@ -183,6 +191,7 @@
       <button class="tab active" data-tab="mosaic" role="tab">モザイク</button>
       <button class="tab" data-tab="upscale" role="tab">画質アップ</button>
       <button class="tab" data-tab="convert" role="tab">形式変換</button>
+      <button class="tab" data-tab="pdf" role="tab">PDF</button>
     </div>
   </header>
 
@@ -280,6 +289,39 @@
     </div>
   </div>
 
+  <div class="uppanel" id="pdfpanel">
+    <span class="pdf-note" id="pdfNote">PDF ファイルを開くと、文字を書き込めます</span>
+    <button class="btn btn-ghost btn-sm" id="pdfOpenBtn">PDFを開く</button>
+    <div class="group pdf-only" id="pdfPager">
+      <span class="group-label">ページ</span>
+      <div class="pager"><button class="btn btn-ghost btn-sm" id="pdfPrev" aria-label="前のページ">◀</button><span id="pdfPageLabel">1 / 1</span><button class="btn btn-ghost btn-sm" id="pdfNext" aria-label="次のページ">▶</button></div>
+    </div>
+    <div class="group pdf-text pdf-only">
+      <span class="group-label">文字</span>
+      <input type="text" id="pdfText" placeholder="入力してからページをタップ" enterkeyhint="done">
+    </div>
+    <div class="ctl pdf-only">
+      <label>サイズ</label>
+      <input type="range" id="pdfSize" min="6" max="40" value="11" step="0.5">
+      <span class="val" id="pdfSizeVal">11</span>
+    </div>
+    <div class="group pdf-only">
+      <span class="group-label">書体</span>
+      <div class="seg" id="pdfFontSeg"><button data-font="mincho" class="on">明朝</button><button data-font="gothic">ゴシック</button></div>
+    </div>
+    <div class="group pdf-only">
+      <span class="group-label">色</span>
+      <div class="seg" id="pdfColorSeg"><button data-color="#000000" class="on">黒</button><button data-color="#1f3fbf">青</button><button data-color="#c62828">赤</button></div>
+    </div>
+    <div class="panel-actions pdf-only">
+      <button class="btn btn-ghost btn-sm" id="pdfDelBtn" disabled>削除</button>
+      <button class="btn btn-ghost btn-sm" id="pdfUndoBtn" disabled>元に戻す</button>
+    </div>
+    <div class="up-actions pdf-only">
+      <button class="btn btn-primary btn-sm" id="pdfSaveBtn">PDFで保存</button>
+    </div>
+  </div>
+
   <main>
     <div class="stage" id="stage">
       <div class="wip" id="wip">この機能は次のステップで実装予定</div>
@@ -297,8 +339,8 @@
       </div>
       <div class="drop" id="drop">
         <div class="drop-ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
-        <p>写真を<b>ドラッグ＆ドロップ</b><br>または下のボタンから選択</p>
-        <button class="pick" id="pickEmpty">写真を選ぶ</button>
+        <p>写真・PDF を<b>ドラッグ＆ドロップ</b><br>または下のボタンから選択</p>
+        <button class="pick" id="pickEmpty">ファイルを選ぶ</button>
       </div>
     </div>
   </main>
@@ -307,7 +349,7 @@
     <div class="tool-hint" id="hint">写真を読み込んでください</div>
     <button class="btn btn-ghost" id="replaceBtn" disabled>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
-      別の写真
+      別のファイル
     </button>
     <button class="btn btn-primary" id="saveBtn" disabled>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
@@ -315,7 +357,7 @@
     </button>
   </div>
 
-  <input type="file" id="fileInput" accept="image/*" hidden>
+  <input type="file" id="fileInput" accept="image/*,application/pdf,.pdf" hidden>
 
   <div class="emoji-picker-backdrop" id="pickerBackdrop"></div>
   <div class="emoji-picker" id="emojiPicker">
@@ -343,6 +385,9 @@
   const progress=$('progress'), progressText=$('progressText'), progressFill=$('progressFill'), progressSub=$('progressSub');
   const convpanel=$('convpanel'), formatSeg=$('formatSeg'), qualityCtl=$('qualityCtl'), quality=$('quality'), qualityVal=$('qualityVal'), convertBtn=$('convertBtn');
   const targetCtl=$('targetCtl'), targetMB=$('targetMB'), targetBtn=$('targetBtn'), sizeInfo=$('sizeInfo');
+  const pdfpanel=$('pdfpanel'), pdfNote=$('pdfNote'), pdfOpenBtn=$('pdfOpenBtn'), pdfPrev=$('pdfPrev'), pdfNext=$('pdfNext'), pdfPageLabel=$('pdfPageLabel');
+  const pdfText=$('pdfText'), pdfSize=$('pdfSize'), pdfSizeVal=$('pdfSizeVal'), pdfFontSeg=$('pdfFontSeg'), pdfColorSeg=$('pdfColorSeg');
+  const pdfDelBtn=$('pdfDelBtn'), pdfUndoBtn=$('pdfUndoBtn'), pdfSaveBtn=$('pdfSaveBtn');
 
   let currentTab='mosaic', hasImage=false, sourceName='image', sourceBytes=0;
   let compVersion=0;  // bumped on every composite rebuild; keys the cached output encode
@@ -351,6 +396,8 @@
   let fillColor='#000000';  // current ベタ塗り color ("color to paint next")
   let upscaleFactor=2, accelTier=null;
   let outFormat='jpg';
+  // PDF mode: {doc (pdf.js), bytes (original file), cur, pages:[{ops, redo, vp, rs}]}; null for images
+  let pdfDoc=null, selTextIdx=-1, textDrag=null, pdfFont='mincho', pdfColor='#000000';
 
   // layers
   const base=document.createElement('canvas'), bctx=base.getContext('2d');
@@ -367,6 +414,7 @@
 
   /* ---------- effect application ---------- */
   function applyOp(op){
+    if(op.type==='text'){ if(op.text&&pdfDoc) drawText(cctx,op,op.pt*pdfDoc.pages[pdfDoc.cur].rs,op.x,op.y); return; }
     if(op.type==='sticker') drawSticker(op);
     else if(op.shape==='rect') applyRectEffect(op.rect, op.effect, op.strength, op.color);
     else applyPathEffect(op.path, op.thickness, op.effect, op.strength, op.color);
@@ -381,6 +429,21 @@
     cctx.fillText(op.emoji, 0, 0);
     cctx.restore();
   }
+
+  // PDF text: system Japanese fonts, so on-screen and saved text look the same without a font download
+  const PDF_FONTS={
+    mincho:'"Hiragino Mincho ProN","Yu Mincho","YuMincho","BIZ UDPMincho","Noto Serif JP","IPAMincho",serif',
+    gothic:'"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic","YuGothic","Meiryo","Noto Sans JP","IPAGothic",sans-serif'};
+  function textMetrics(c,op,px){
+    c.font=`${px}px ${PDF_FONTS[op.font]||PDF_FONTS.mincho}`;
+    const m=c.measureText(op.text||' ');
+    return {w:m.width, asc:m.fontBoundingBoxAscent??px*0.88, desc:m.fontBoundingBoxDescent??px*0.12};
+  }
+  // draws with the box's top-left at (x,y)
+  function drawText(c,op,px,x,y){
+    const t=textMetrics(c,op,px); c.fillStyle=op.color; c.textBaseline='alphabetic'; c.fillText(op.text,x,y+t.asc); return t;
+  }
+  function textBox(op){ const t=textMetrics(cctx,op,op.pt*pdfDoc.pages[pdfDoc.cur].rs); return {x:op.x,y:op.y,w:t.w,h:t.asc+t.desc}; }
 
   // Build a processed (pixelated/blurred/box) full-frame layer from current comp, then
   // paint it back only inside the given mask. This keeps brush & rect on one code path.
@@ -492,6 +555,11 @@
       [H.resize,H.rotate].forEach(p=>{ ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2); ctx.fill(); ctx.stroke(); });
       ctx.restore();
     }
+    if(currentTab==='pdf' && pdfDoc && selTextIdx>=0 && operations[selTextIdx]){
+      const b=textBox(operations[selTextIdx]), pad=3*dpr/scale;
+      ctx.save(); ctx.lineWidth=1.5*dpr/scale; ctx.strokeStyle='#6B3FA0'; ctx.setLineDash([6*dpr/scale,4*dpr/scale]);
+      ctx.strokeRect(b.x-pad,b.y-pad,b.w+2*pad,Math.max(b.h,4*dpr/scale)+2*pad); ctx.restore();
+    }
     updateZoomLabel();
   }
   function updateZoomLabel(){ zoomlabel.textContent=Math.round((scale/fitScale())*100)+'%'; }
@@ -531,6 +599,7 @@
       pinchPrev={mid:mid([...pointers.values()]),dist:dist([...pointers.values()])}; render();
     }else if(pointers.size===1){
       const c=toCanvas(e);
+      if(currentTab==='pdf'&&pdfDoc&&e.button!==1&&!spaceHeld&&pdfPointerDown(c)){ e.preventDefault(); return; }
       if(canEdit()&&!isPanInput(e)){
         const p=canvasToImg(c);
         if(effect==='sticker'){
@@ -565,6 +634,10 @@
       render();
     }else if(gesture==='brush'&&brushPts){
       brushPts.push(canvasToImg(toCanvas(e))); render();
+    }else if(gesture==='text-move'&&textDrag&&operations[selTextIdx]){
+      const p=canvasToImg(toCanvas(e)), op=operations[selTextIdx];
+      op.x=textDrag.x+(p.x-textDrag.p0.x); op.y=textDrag.y+(p.y-textDrag.p0.y);
+      buildComposite(); render();
     }else if(gesture&&gesture.startsWith('sticker-')&&selStickerIdx>=0&&stickerStart){
       const p=canvasToImg(toCanvas(e)), op=operations[selStickerIdx], s=stickerStart;
       if(gesture==='sticker-move'){ op.cx=s.op.cx+(p.x-s.pI.x); op.cy=s.op.cy+(p.y-s.pI.y); }
@@ -586,7 +659,7 @@
       preview=null; brushPts=null;
     }else if(g&&g.startsWith('sticker-')){
       stickerStart=null; updateEditState();
-    }
+    }else if(g==='text-move'){ textDrag=null; }
     if(pointers.size===1){ gesture='pan'; panLast=[...pointers.values()][0]; pinchPrev=null; }
     else if(pointers.size===0){ gesture=null; panLast=null; pinchPrev=null; setCursor(); }
     render();
@@ -607,12 +680,13 @@
     if(e.target.tagName==='INPUT') return;
     if(e.code==='Space'&&hasImage){ spaceHeld=true; if(!gesture) setCursor('grab'); e.preventDefault(); return; }
     const meta=e.metaKey||e.ctrlKey;
+    if((e.key==='Delete'||e.key==='Backspace')&&currentTab==='pdf'&&selTextIdx>=0){ e.preventDefault(); deleteSelectedText(); return; }
     if(meta&&e.key.toLowerCase()==='z'){ e.preventDefault(); if(e.shiftKey) redo(); else undo(); }
     else if(meta&&e.key.toLowerCase()==='s'){ e.preventDefault(); doSave(); }
   });
   window.addEventListener('keyup',e=>{ if(e.code==='Space'){ spaceHeld=false; if(!gesture) setCursor(); } });
 
-  function setCursor(force){ if(force){canvas.style.cursor=force;return;} canvas.style.cursor=canEdit()?'crosshair':(hasImage?'grab':'default'); }
+  function setCursor(force){ if(force){canvas.style.cursor=force;return;} canvas.style.cursor=(canEdit()||(currentTab==='pdf'&&pdfDoc))?'crosshair':(hasImage?'grab':'default'); }
 
   /* ---------- effect / mode / sliders ---------- */
   effectSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
@@ -751,20 +825,33 @@
   function redo(){ if(redoStack.length){ operations.push(redoStack.pop()); buildComposite(); render(); updateEditState(); } }
   undoBtn.addEventListener('click',undo);
   clearBtn.addEventListener('click',()=>{ if(operations.length){ redoStack=[]; operations=[]; selStickerIdx=-1; buildComposite(); render(); updateEditState(); } });
-  function updateEditState(){ const on=canEdit()&&operations.length>0; undoBtn.disabled=!on; clearBtn.disabled=!on; }
+  function updateEditState(){
+    const on=canEdit()&&operations.length>0; undoBtn.disabled=!on; clearBtn.disabled=!on;
+    pdfUndoBtn.disabled=!(pdfDoc&&operations.length>0); pdfDelBtn.disabled=selTextIdx<0;
+  }
 
   /* ---------- tabs ---------- */
-  tabs.forEach(t=>t.addEventListener('click',()=>{ tabs.forEach(x=>x.classList.remove('active')); t.classList.add('active'); currentTab=t.dataset.tab; refreshUI(); }));
+  function setTab(name){
+    tabs.forEach(x=>x.classList.toggle('active',x.dataset.tab===name)); currentTab=name;
+    if(name!=='pdf'&&selTextIdx>=0) deselectText();
+    refreshUI();
+  }
+  tabs.forEach(t=>t.addEventListener('click',()=>setTab(t.dataset.tab)));
   let accelChecked=false;
   function refreshUI(){
-    const m=currentTab==='mosaic', up=currentTab==='upscale', cv=currentTab==='convert';
+    const m=currentTab==='mosaic', up=currentTab==='upscale', cv=currentTab==='convert', pd=currentTab==='pdf';
     toolpanel.classList.toggle('show',hasImage&&m);
     uppanel.classList.toggle('show',hasImage&&up);
     convpanel.classList.toggle('show',hasImage&&cv);
+    pdfpanel.classList.toggle('show',hasImage&&pd);
+    pdfpanel.querySelectorAll('.pdf-only').forEach(el=>el.style.display=pdfDoc?'':'none');
+    pdfNote.style.display=pdfOpenBtn.style.display=pdfDoc?'none':'';
+    tabs.forEach(t=>t.disabled=!!pdfDoc&&t.dataset.tab!=='pdf');  // image tools don't apply to a PDF
     wip.classList.remove('show');
     zoomctl.classList.toggle('show',hasImage);
     zoomlabel.classList.toggle('show',hasImage);
-    if(!hasImage) hint.textContent='写真を読み込んでください';
+    if(!hasImage) hint.textContent='写真または PDF を読み込んでください';
+    else if(pd) hint.innerHTML=pdfDoc?'文字を入力してページをタップ／文字はドラッグで移動、タップで選択して修正':'PDF ファイルを開いてください';
     else if(m) hint.innerHTML='ドラッグで範囲指定／ホイール・ピンチで拡大、中ボタン・スペースで移動';
     else if(up) hint.innerHTML='倍率を選んで「画質を上げる」（移動・拡大も可能）';
     else hint.innerHTML='形式を選んで「変換して保存」（現在の画像をそのまま変換します）';
@@ -775,13 +862,16 @@
 
   /* ---------- load ---------- */
   function loadFile(file){
-    if(!file||!file.type.startsWith('image/')) return;
+    if(!file) return;
+    if(file.type==='application/pdf'||/\.pdf$/i.test(file.name||'')){ loadPdf(file); return; }
+    if(!file.type.startsWith('image/')) return;
     sourceName=(file.name||'image').replace(/\.[^.]+$/,''); sourceBytes=file.size||0;
     const url=URL.createObjectURL(file), img=new Image();
     img.onload=()=>{
       base.width=img.naturalWidth; base.height=img.naturalHeight;
       comp.width=img.naturalWidth; comp.height=img.naturalHeight;
       bctx.setTransform(1,0,0,1,0,0); bctx.clearRect(0,0,base.width,base.height); bctx.drawImage(img,0,0);
+      closePdf(); if(currentTab==='pdf') setTab('mosaic');
       operations=[]; redoStack=[]; selStickerIdx=-1; URL.revokeObjectURL(url);
       hasImage=true; canvas.classList.add('loaded'); drop.classList.add('hide');
       saveBtn.disabled=false; replaceBtn.disabled=false;
@@ -804,15 +894,19 @@
   // Only route to the native share sheet on mobile (where it offers "save to Photos").
   // Desktop browsers now support Web Share too, but there a direct download is expected.
   const useShareSheet=(file)=> window.matchMedia('(max-width:640px)').matches && navigator.canShare && navigator.canShare({files:[file]});
-  async function doSave(){
-    if(!hasImage) return;
-    const blob=await new Promise(res=>comp.toBlob(res,'image/png')); if(!blob) return;
-    const fname=`${sourceName}_edited.png`, file=new File([blob],fname,{type:'image/png'});
+  async function deliverFile(blob,fname,mime){
+    const file=new File([blob],fname,{type:mime});
     if(useShareSheet(file)){
       try{ await navigator.share({files:[file]}); return; }catch(err){ if(err&&err.name==='AbortError') return; }
     }
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  }
+  async function doSave(){
+    if(!hasImage) return;
+    if(pdfDoc) return savePdf();
+    const blob=await new Promise(res=>comp.toBlob(res,'image/png')); if(!blob) return;
+    await deliverFile(blob,`${sourceName}_edited.png`,'image/png');
   }
   saveBtn.addEventListener('click',doSave);
 
@@ -916,12 +1010,7 @@
       fname=`${sourceName}.${outFormat==='jpg'?'jpg':'png'}`;
     }
     blob=await getEncoded(outFormat,parseInt(quality.value,10)); if(!blob) return;
-    const file=new File([blob],fname,{type:mime});
-    if(useShareSheet(file)){
-      try{ await navigator.share({files:[file]}); return; }catch(err){ if(err&&err.name==='AbortError') return; }
-    }
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    await deliverFile(blob,fname,mime);
   }
   convertBtn.addEventListener('click',doConvert);
 
@@ -1195,6 +1284,160 @@
       setTimeout(hideProgress,3200);
     }finally{ upscaling=false; upscaleBtn.disabled=false; }
   });
+
+  /* ---------- PDF: open, write text, save (pdf.js renders, pdf-lib saves) ---------- */
+  const PDFJS_V='6.4.299', PDFLIB_V='1.17.1';
+  const PDFJS_ROOT=`https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_V}/`, PDFJS_BUILD=PDFJS_ROOT+'legacy/build/';
+  const PDF_TEXT_DPI=600;  // resolution of the text images placed into the saved PDF
+  let pdfjsLib=null;
+  async function loadPdfJs(){
+    if(pdfjsLib) return pdfjsLib;
+    const lib=await import(PDFJS_BUILD+'pdf.min.mjs');
+    // a cross-origin module worker can't be started directly; start a same-origin one that imports it
+    try{
+      const src=URL.createObjectURL(new Blob([`import "${PDFJS_BUILD}pdf.worker.min.mjs";`],{type:'text/javascript'}));
+      lib.GlobalWorkerOptions.workerPort=new Worker(src,{type:'module'});
+    }catch{ lib.GlobalWorkerOptions.workerSrc=PDFJS_BUILD+'pdf.worker.min.mjs'; }  // pdf.js falls back to its main-thread worker
+    return pdfjsLib=lib;
+  }
+
+  async function loadPdf(file){
+    showProgress('PDF を読み込み中…','');
+    try{
+      const lib=await loadPdfJs();
+      const bytes=new Uint8Array(await file.arrayBuffer());
+      // pdf.js transfers the buffer it gets to its worker, so give it a copy and keep the original for saving
+      const doc=await lib.getDocument({data:bytes.slice(), cMapUrl:PDFJS_ROOT+'cmaps/', cMapPacked:true,
+        standardFontDataUrl:PDFJS_ROOT+'standard_fonts/', wasmUrl:PDFJS_ROOT+'wasm/', iccUrl:PDFJS_ROOT+'iccs/'}).promise;
+      closePdf();
+      pdfDoc={doc, bytes, cur:0, pages:Array.from({length:doc.numPages},()=>({ops:[],redo:[],vp:null,rs:1}))};
+      sourceName=(file.name||'document').replace(/\.[^.]+$/,''); sourceBytes=file.size||0;
+      hasImage=true; canvas.classList.add('loaded'); drop.classList.add('hide');
+      saveBtn.disabled=false; replaceBtn.disabled=false;
+      setTab('pdf');
+      await showPdfPage(0);
+      hideProgress();
+    }catch(err){
+      progressText.textContent='PDF を開けませんでした';
+      progressSub.textContent= err&&err.name==='PasswordException' ? 'パスワード付きの PDF には対応していません' : String(err&&err.message||err).slice(0,120);
+      setTimeout(hideProgress,3600);
+    }
+  }
+  function closePdf(){
+    if(!pdfDoc) return;
+    try{ pdfDoc.doc.destroy(); }catch{}
+    pdfDoc=null; selTextIdx=-1; textDrag=null; pdfText.value='';
+  }
+  // store the shown page's edits (operations/redoStack are the live arrays of the page on screen)
+  function syncPageState(){ const pg=pdfDoc&&pdfDoc.pages[pdfDoc.cur]; if(pg&&pg.vp){ pg.ops=operations; pg.redo=redoStack; } }
+
+  async function showPdfPage(i){
+    syncPageState();
+    const pg=pdfDoc.pages[i], page=await pdfDoc.doc.getPage(i+1);
+    const v1=page.getViewport({scale:1});
+    const rs=Math.min(4,(IS_MOBILE?1800:2400)/Math.max(v1.width,v1.height));  // render px per PDF point
+    const vp=page.getViewport({scale:rs});
+    base.width=comp.width=Math.round(vp.width); base.height=comp.height=Math.round(vp.height);
+    bctx.setTransform(1,0,0,1,0,0); bctx.fillStyle='#fff'; bctx.fillRect(0,0,base.width,base.height);
+    await page.render({canvas:base, viewport:vp}).promise;
+    pg.vp=vp; pg.rs=rs;
+    pdfDoc.cur=i; operations=pg.ops; redoStack=pg.redo; selTextIdx=-1; pdfText.value='';
+    pdfPageLabel.textContent=`${i+1} / ${pdfDoc.pages.length}`;
+    pdfPrev.disabled=i===0; pdfNext.disabled=i===pdfDoc.pages.length-1;
+    resize(); buildComposite(); fitView(); refreshUI();
+  }
+  async function gotoPage(i){
+    if(!pdfDoc||i<0||i>=pdfDoc.pages.length||i===pdfDoc.cur) return;
+    deselectText(); showProgress('ページを表示中…','');
+    try{ await showPdfPage(i); }finally{ hideProgress(); }
+  }
+  pdfPrev.addEventListener('click',()=>pdfDoc&&gotoPage(pdfDoc.cur-1));
+  pdfNext.addEventListener('click',()=>pdfDoc&&gotoPage(pdfDoc.cur+1));
+  pdfOpenBtn.addEventListener('click',openPicker);
+
+  // tap on a text: select (and drag to move); tap elsewhere: finish the selection, or place the typed text
+  function hitText(p){
+    const tol=6*dpr/scale;
+    for(let i=operations.length-1;i>=0;i--){
+      const op=operations[i]; if(op.type!=='text') continue;
+      const b=textBox(op);
+      if(p.x>=b.x-tol&&p.x<=b.x+b.w+tol&&p.y>=b.y-tol&&p.y<=b.y+b.h+tol) return i;
+    }
+    return -1;
+  }
+  function pdfPointerDown(c){
+    const p=canvasToImg(c), hit=hitText(p);
+    if(hit>=0){ selectText(hit); gesture='text-move'; textDrag={p0:p,x:operations[hit].x,y:operations[hit].y}; render(); return true; }
+    if(selTextIdx>=0){ deselectText(); render(); return true; }
+    const t=pdfText.value; if(!t.trim()) return false;  // nothing to place: let the drag pan
+    const op={type:'text',text:t,x:p.x,y:0,pt:parseFloat(pdfSize.value),font:pdfFont,color:pdfColor};
+    op.y=p.y-textBox(op).h/2;  // vertically centred on the tap
+    operations.push(op); redoStack.length=0;
+    selectText(operations.length-1); buildComposite(); render();
+    return true;
+  }
+  function setSegOn(seg,attr,val){ seg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset[attr]===val)); }
+  function selectText(i){
+    selTextIdx=i; const op=operations[i];
+    pdfText.value=op.text; pdfSize.value=op.pt; pdfSizeVal.textContent=op.pt;
+    pdfFont=op.font; pdfColor=op.color; setSegOn(pdfFontSeg,'font',op.font); setSegOn(pdfColorSeg,'color',op.color);
+    updateEditState();
+  }
+  function deselectText(){
+    if(selTextIdx>=0&&operations[selTextIdx]&&!operations[selTextIdx].text.trim()) operations.splice(selTextIdx,1);  // drop emptied texts
+    selTextIdx=-1; textDrag=null; pdfText.value='';
+    if(pdfDoc){ buildComposite(); updateEditState(); }
+  }
+  function deleteSelectedText(){
+    if(selTextIdx<0) return;
+    operations.splice(selTextIdx,1); selTextIdx=-1; pdfText.value='';
+    buildComposite(); render(); updateEditState();
+  }
+  const editSelected=fn=>{ if(selTextIdx>=0&&operations[selTextIdx]){ fn(operations[selTextIdx]); buildComposite(); render(); } };
+  pdfText.addEventListener('input',()=>editSelected(op=>op.text=pdfText.value));
+  pdfText.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); if(selTextIdx>=0){ deselectText(); render(); } pdfText.blur(); } });
+  pdfSize.addEventListener('input',()=>{ pdfSizeVal.textContent=pdfSize.value; editSelected(op=>op.pt=parseFloat(pdfSize.value)); });
+  pdfFontSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ pdfFont=b.dataset.font; setSegOn(pdfFontSeg,'font',pdfFont); editSelected(op=>op.font=pdfFont); }));
+  pdfColorSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ pdfColor=b.dataset.color; setSegOn(pdfColorSeg,'color',pdfColor); editSelected(op=>op.color=pdfColor); }));
+  pdfDelBtn.addEventListener('click',deleteSelectedText);
+  pdfUndoBtn.addEventListener('click',()=>{ selTextIdx=-1; textDrag=null; pdfText.value=''; undo(); });
+  pdfSaveBtn.addEventListener('click',savePdf);
+
+  // Keep the original PDF untouched and place each text on top as a transparent high-resolution image,
+  // positioned through the page viewport (so crop boxes and page rotation map correctly).
+  async function savePdf(){
+    if(!pdfDoc) return;
+    deselectText(); render(); syncPageState();
+    showProgress('PDF を作成中…','');
+    try{
+      if(!window.PDFLib) await loadScript(`https://cdn.jsdelivr.net/npm/pdf-lib@${PDFLIB_V}/dist/pdf-lib.min.js`);
+      const {PDFDocument,degrees}=window.PDFLib;
+      const out=await PDFDocument.load(pdfDoc.bytes,{updateMetadata:false});
+      const pages=out.getPages(), k=PDF_TEXT_DPI/72;
+      for(let i=0;i<pdfDoc.pages.length;i++){
+        const pg=pdfDoc.pages[i];
+        for(const op of pg.ops){
+          if(op.type!=='text'||!op.text.trim()) continue;
+          const c=document.createElement('canvas'), cx=c.getContext('2d');
+          const px=op.pt*k, t=textMetrics(cx,op,px), pad=Math.ceil(px*0.1);
+          c.width=Math.ceil(t.w)+pad*2; c.height=Math.ceil(t.asc+t.desc)+pad*2;
+          drawText(cx,op,px,pad,pad);
+          const png=await new Promise(r=>c.toBlob(r,'image/png'));
+          const img=await out.embedPng(new Uint8Array(await png.arrayBuffer()));
+          const s=pg.rs/k, x0=op.x-pad*s, y0=op.y-pad*s, x1=x0+c.width*s, y1=y0+c.height*s;  // box in page-view px
+          const [blx,bly]=pg.vp.convertToPdfPoint(x0,y1), [brx,bry]=pg.vp.convertToPdfPoint(x1,y1), [tlx,tly]=pg.vp.convertToPdfPoint(x0,y0);
+          pages[i].drawImage(img,{x:blx,y:bly,width:Math.hypot(brx-blx,bry-bly),height:Math.hypot(tlx-blx,tly-bly),
+            rotate:degrees(Math.atan2(bry-bly,brx-blx)*180/Math.PI)});
+        }
+      }
+      const bytes=await out.save();
+      hideProgress();
+      await deliverFile(new Blob([bytes],{type:'application/pdf'}),`${sourceName}_edited.pdf`,'application/pdf');
+    }catch(err){
+      progressText.textContent='PDF の保存に失敗しました'; progressSub.textContent=String(err&&err.message||err).slice(0,120);
+      setTimeout(hideProgress,3600);
+    }
+  }
 
   /* ---------- resize ---------- */
   function resize(){
