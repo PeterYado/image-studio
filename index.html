@@ -599,7 +599,11 @@
       pinchPrev={mid:mid([...pointers.values()]),dist:dist([...pointers.values()])}; render();
     }else if(pointers.size===1){
       const c=toCanvas(e);
-      if(currentTab==='pdf'&&pdfDoc&&e.button!==1&&!spaceHeld&&pdfPointerDown(c)){ e.preventDefault(); return; }
+      if(currentTab==='pdf'&&pdfDoc&&e.button!==1&&!spaceHeld){
+        // finish any IME conversion first: blurring commits it, so the text field holds its final value
+        if(document.activeElement===pdfText) pdfText.blur();
+        if(pdfPointerDown(c)){ e.preventDefault(); return; }
+      }
       if(canEdit()&&!isPanInput(e)){
         const p=canvasToImg(c);
         if(effect==='sticker'){
@@ -1394,8 +1398,16 @@
     buildComposite(); render(); updateEditState();
   }
   const editSelected=fn=>{ if(selTextIdx>=0&&operations[selTextIdx]){ fn(operations[selTextIdx]); buildComposite(); render(); } };
+  // Japanese IME: the field holds unconverted text while composing, and the Enter that confirms a
+  // conversion must not be taken as "done" (clearing the field mid-conversion made the IME re-insert it)
+  let composing=false;
+  pdfText.addEventListener('compositionstart',()=>composing=true);
+  pdfText.addEventListener('compositionend',()=>{ composing=false; editSelected(op=>op.text=pdfText.value); });
   pdfText.addEventListener('input',()=>editSelected(op=>op.text=pdfText.value));
-  pdfText.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); if(selTextIdx>=0){ deselectText(); render(); } pdfText.blur(); } });
+  pdfText.addEventListener('keydown',e=>{
+    if(e.key!=='Enter'||composing||e.isComposing||e.keyCode===229) return;
+    e.preventDefault(); pdfText.blur(); if(selTextIdx>=0){ deselectText(); render(); }
+  });
   pdfSize.addEventListener('input',()=>{ pdfSizeVal.textContent=pdfSize.value; editSelected(op=>op.pt=parseFloat(pdfSize.value)); });
   pdfFontSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ pdfFont=b.dataset.font; setSegOn(pdfFontSeg,'font',pdfFont); editSelected(op=>op.font=pdfFont); }));
   pdfColorSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ pdfColor=b.dataset.color; setSegOn(pdfColorSeg,'color',pdfColor); editSelected(op=>op.color=pdfColor); }));
