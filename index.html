@@ -129,6 +129,30 @@
   .stamp-item .x{position:absolute;top:-7px;right:-7px;width:18px;height:18px;padding:0;border:none;border-radius:50%;
     background:var(--ink);color:#fff;font-size:11px;line-height:18px;cursor:pointer;}
   .chk{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--ink-soft);white-space:nowrap;cursor:pointer;}
+  /* slack emoji tab */
+  .se-swatches{display:flex;gap:5px;flex-wrap:wrap;}
+  .se-swatches button{width:22px;height:22px;padding:0;border-radius:50%;border:1px solid rgba(0,0,0,.18);cursor:pointer;}
+  .se-swatches button:active{transform:scale(.9);}
+  .sestage{position:absolute;inset:0;z-index:5;display:none;overflow:auto;background:var(--canvas-bg);padding:20px;}
+  .sestage.show{display:flex;}
+  .se-wrap{margin:auto;display:flex;flex-wrap:wrap;gap:22px;align-items:center;justify-content:center;}
+  .se-bigbox{display:flex;flex-direction:column;align-items:center;gap:8px;}
+  .se-big{width:256px;height:256px;border-radius:12px;overflow:hidden;background:#fff repeating-conic-gradient(#e4e4e4 0 25%,#fff 0 50%) 0 0/16px 16px;box-shadow:0 6px 24px rgba(0,0,0,.3);}
+  .se-big img{width:100%;height:100%;display:block;}
+  .se-cap{font-size:11.5px;font-weight:700;color:rgba(255,255,255,.65);font-variant-numeric:tabular-nums;}
+  .se-mocks{display:flex;flex-direction:column;gap:12px;}
+  .se-mock{width:300px;border-radius:10px;padding:12px 14px;font:14px/1.46 -apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;display:flex;gap:9px;}
+  .se-mock.light{background:#fff;color:#1d1c1d;}
+  .se-mock.dark{background:#1a1d21;color:#d1d2d3;}
+  .se-av{width:36px;height:36px;border-radius:7px;background:#8e6bbf;flex:none;}
+  .se-body{display:flex;flex-direction:column;gap:3px;min-width:0;}
+  .se-name{font-weight:900;}
+  .se-name small{font-weight:400;font-size:11.5px;opacity:.6;margin-left:6px;}
+  .se-body img{vertical-align:middle;}
+  .se-i22{width:22px;height:22px;} .se-i32{width:32px;height:32px;} .se-i16{width:16px;height:16px;}
+  .se-react{display:inline-flex;align-items:center;gap:5px;width:fit-content;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:700;margin-top:3px;}
+  .light .se-react{background:#e8f5fa;border:1px solid #1d9bd1;color:#1264a3;}
+  .dark .se-react{background:#1f3747;border:1px solid #1d9bd1;color:#d1d2d3;}
 
   /* progress overlay */
   .progress{position:absolute;inset:0;z-index:6;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(26,19,32,.6);backdrop-filter:blur(4px);padding:32px;text-align:center;}
@@ -146,7 +170,7 @@
     .pdf-text, .it-text, .it-font{flex-basis:100%;}
     .it-font select{flex:1;min-width:0;}
     #textpanel.show{max-height:46vh;overflow-y:auto;}  /* keep room for the image on phones */
-    .tab{font-size:12.5px;letter-spacing:0;white-space:nowrap;}
+    .tab{font-size:min(12.5px,2.95vw);letter-spacing:0;white-space:nowrap;}
     .it-text textarea{flex:1;width:auto;min-width:0;}
     .pdf-text input{flex:1;width:auto;min-width:0;}
   }
@@ -192,8 +216,17 @@
 
   @media (max-width:640px){
     .brand h1{font-size:16px;}
-    .tab{padding:9px 0;flex:1;text-align:center;}
-    .tabs{width:100%;}
+    .tab{padding:9px 2px;flex:1 0 auto;text-align:center;}
+    .tabs{width:100%;gap:2px;overflow-x:auto;scrollbar-width:none;}
+    .tabs::-webkit-scrollbar{display:none;}
+    #sePanel.show{max-height:40vh;overflow-y:auto;}
+    #seFamily{flex:1 1 55%;}
+    .sestage{padding:10px;}
+    .se-wrap{gap:10px;flex-wrap:nowrap;align-items:flex-start;}
+    .se-big{width:112px;height:112px;}
+    .se-mocks{gap:8px;flex:1;min-width:0;}
+    .se-mock{width:auto;padding:8px 10px;font-size:12.5px;}
+    .se-av{display:none;}
     .toolpanel{gap:10px 12px;}
     .ctl{flex-basis:100%;min-width:0;}
     .panel-actions{flex:1;}
@@ -213,6 +246,7 @@
       <button class="tab" data-tab="upscale" role="tab">画質アップ</button>
       <button class="tab" data-tab="convert" role="tab">形式変換</button>
       <button class="tab" data-tab="text" role="tab">テキスト</button>
+      <button class="tab" data-tab="semoji" role="tab">絵文字</button>
       <button class="tab" data-tab="pdf" role="tab">PDF</button>
     </div>
   </header>
@@ -373,6 +407,48 @@
     </div>
   </div>
 
+  <div class="uppanel" id="sePanel">
+    <div class="group it-text">
+      <span class="group-label">文字</span>
+      <textarea id="seText" rows="2" placeholder="絵文字にする文字（改行で複数行）">了解</textarea>
+    </div>
+    <div class="group it-font">
+      <span class="group-label">フォント</span>
+      <select id="seFamily"></select>
+      <select id="seStyle"></select>
+      <button class="btn btn-ghost btn-sm" id="seLocalBtn" title="この PC にインストールされているフォントを一覧に追加">PCのフォント</button>
+      <button class="btn btn-ghost btn-sm" id="seFileBtn" title="フォントファイル（.ttf / .otf / .woff2）を読み込む">ファイル…</button>
+    </div>
+    <div class="group">
+      <span class="group-label">文字色</span><input type="color" id="seColor" value="#e01e5a">
+      <div class="se-swatches" id="seSwatches"></div>
+    </div>
+    <div class="group">
+      <span class="group-label">背景</span>
+      <div class="seg" id="seBgSeg"><button data-bg="none" class="on">透明</button><button data-bg="color">色</button></div>
+      <input type="color" id="seBgColor" value="#ffffff" style="display:none;">
+    </div>
+    <div class="group">
+      <span class="group-label">配置</span>
+      <div class="seg" id="seFitSeg"><button data-fit="fill" class="on">ぴったり</button><button data-fit="keep">比率維持</button></div>
+    </div>
+    <div class="ctl"><label>余白</label><input type="range" id="seMargin" min="0" max="24" value="2" step="1"><span class="val" id="seMarginVal">2</span></div>
+    <div class="ctl"><label>行間</label><input type="range" id="seGap" min="0" max="24" value="3" step="1"><span class="val" id="seGapVal">3</span></div>
+    <div class="group">
+      <label class="chk"><input type="checkbox" id="seStrokeOn" checked>縁取り</label>
+      <input type="color" id="seStrokeColor" value="#ffffff">
+    </div>
+    <div class="ctl"><label>縁の太さ</label><input type="range" id="seStrokeW" min="1" max="10" value="3" step="1"><span class="val" id="seStrokeWVal">3</span></div>
+    <div class="group">
+      <span class="group-label">サイズ</span>
+      <div class="seg" id="seSizeSeg"><button data-px="128" class="on">128</button><button data-px="256">256</button><button data-px="512">512</button></div>
+    </div>
+    <div class="up-actions">
+      <span class="sizeinfo" id="seInfo"></span>
+      <button class="btn btn-primary btn-sm" id="seSaveBtn">PNGで保存</button>
+    </div>
+  </div>
+
   <div class="uppanel" id="pdfpanel">
     <span class="pdf-note" id="pdfNote">PDF ファイルを開くと、文字を書き込めます</span>
     <button class="btn btn-ghost btn-sm" id="pdfOpenBtn">PDFを開く</button>
@@ -445,6 +521,25 @@
         <div class="drop-ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
         <p>写真・PDF を<b>ドラッグ＆ドロップ</b><br>または下のボタンから選択</p>
         <button class="pick" id="pickEmpty">ファイルを選ぶ</button>
+      </div>
+      <div class="sestage" id="seStage">
+        <div class="se-wrap">
+          <div class="se-bigbox"><div class="se-big"><img id="seBig" alt=""></div><div class="se-cap" id="seCap"></div></div>
+          <div class="se-mocks">
+            <div class="se-mock light"><div class="se-av"></div><div class="se-body">
+              <div class="se-name">あなた<small>12:34</small></div>
+              <div>確認しました <img class="se-e se-i22" alt=""></div>
+              <div><img class="se-e se-i32" alt=""></div>
+              <span class="se-react"><img class="se-e se-i16" alt="">3</span>
+            </div></div>
+            <div class="se-mock dark"><div class="se-av"></div><div class="se-body">
+              <div class="se-name">あなた<small>12:34</small></div>
+              <div>確認しました <img class="se-e se-i22" alt=""></div>
+              <div><img class="se-e se-i32" alt=""></div>
+              <span class="se-react"><img class="se-e se-i16" alt="">3</span>
+            </div></div>
+          </div>
+        </div>
       </div>
     </div>
   </main>
@@ -852,6 +947,7 @@
   /* ---------- keyboard shortcuts ---------- */
   window.addEventListener('keydown',e=>{
     if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;  // typing in a field: no shortcuts
+    if(currentTab==='semoji'){ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){ e.preventDefault(); doSave(); } return; }
     if(e.code==='Space'&&hasImage){ spaceHeld=true; if(!gesture) setCursor('grab'); e.preventDefault(); return; }
     const meta=e.metaKey||e.ctrlKey;
     if((e.key==='Delete'||e.key==='Backspace')&&currentTab==='pdf'&&selItemIdx>=0){ e.preventDefault(); deleteSelectedItem(); return; }
@@ -1016,7 +1112,9 @@
   tabs.forEach(t=>t.addEventListener('click',()=>setTab(t.dataset.tab)));
   let accelChecked=false;
   function refreshUI(){
-    const m=currentTab==='mosaic', up=currentTab==='upscale', cv=currentTab==='convert', pd=currentTab==='pdf';
+    const m=currentTab==='mosaic', up=currentTab==='upscale', cv=currentTab==='convert', pd=currentTab==='pdf', se=currentTab==='semoji';
+    sePanel.classList.toggle('show',se); seStage.classList.toggle('show',se);
+    saveBtn.disabled=!(hasImage||se);  // the emoji tab works without an image
     toolpanel.classList.toggle('show',hasImage&&m);
     uppanel.classList.toggle('show',hasImage&&up);
     convpanel.classList.toggle('show',hasImage&&cv);
@@ -1028,11 +1126,12 @@
       el.style.display=pdfDoc&&(!tools.length||tools.includes(pdfTool))?'':'none';
     });
     pdfNote.style.display=pdfOpenBtn.style.display=pdfDoc?'none':'';
-    tabs.forEach(t=>t.disabled=!!pdfDoc&&t.dataset.tab!=='pdf');  // image tools don't apply to a PDF
+    tabs.forEach(t=>t.disabled=!!pdfDoc&&t.dataset.tab!=='pdf'&&t.dataset.tab!=='semoji');  // image tools don't apply to a PDF
     wip.classList.remove('show');
-    zoomctl.classList.toggle('show',hasImage);
-    zoomlabel.classList.toggle('show',hasImage);
-    if(!hasImage) hint.textContent='写真または PDF を読み込んでください';
+    zoomctl.classList.toggle('show',hasImage&&!se);
+    zoomlabel.classList.toggle('show',hasImage&&!se);
+    if(se) hint.innerHTML='文字を入力すると Slack 用の絵文字ができます（PNG で保存）';
+    else if(!hasImage) hint.textContent='写真または PDF を読み込んでください';
     else if(currentTab==='text') hint.innerHTML='文字を入力して画像をタップ／ドラッグで移動、○ で大きさ・角度（Shift で 15° 刻み）';
     else if(pd) hint.innerHTML=!pdfDoc?'PDF ファイルを開いてください'
       : pdfTool==='stamp'?'印鑑を選んでページをタップ／印鑑はドラッグで移動、タップで選択して大きさを変更'
@@ -1044,6 +1143,7 @@
     setCursor(); updateEditState();
     if(hasImage&&cv) scheduleEstimate();
     if(hasImage&&up&&!accelChecked){ accelChecked=true; detectAccel().then(setAccelBadge); }
+    if(se) seSchedule();
   }
 
   /* ---------- load ---------- */
@@ -1090,6 +1190,7 @@
     setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   }
   async function doSave(){
+    if(currentTab==='semoji') return seSave();
     if(!hasImage) return;
     if(pdfDoc) return savePdf();
     const blob=await new Promise(res=>comp.toBlob(res,'image/png')); if(!blob) return;
@@ -1619,6 +1720,7 @@
   itAddFamily('sys-sans','システム（ゴシック）','システム',[{label:'標準',css:'sans-serif',weight:400},{label:'太字',css:'sans-serif',weight:700}]);
   itAddFamily('sys-serif','システム（明朝）','システム',[{label:'標準',css:'serif',weight:400},{label:'太字',css:'serif',weight:700}]);
   let itFamilyKey='sys-sans', itStyleIdx=0;
+  const famListeners=[];  // other font pickers (the emoji tab) that mirror this list
   function itRenderFamilies(){
     itFamily.innerHTML='';
     const groups={};
@@ -1630,6 +1732,7 @@
       itFamily.appendChild(og);
     }
     itFamily.value=itFamilyKey; itRenderStyles();
+    famListeners.forEach(f=>f());
   }
   function itRenderStyles(){
     const f=itFamilies.get(itFamilyKey); itStyle.innerHTML='';
@@ -1654,7 +1757,7 @@
   async function itFace(source){ const name=`isfont-${++itFontSeq}`, ff=new FontFace(name,source); await ff.load(); document.fonts.add(ff); return name; }
   // installed fonts (Local Font Access API, Chrome/Edge on desktop; asks for permission once)
   if(!('queryLocalFonts' in window)){ itLocalBtn.disabled=true; itLocalBtn.title='このブラウザでは使えません（「ファイル…」から読み込んでください）'; }
-  itLocalBtn.addEventListener('click',async ()=>{
+  async function loadLocalFonts(){
     try{
       const list=await window.queryLocalFonts(), fams=new Map();
       for(const fd of list){ if(!fams.has(fd.family)) fams.set(fd.family,[]); fams.get(fd.family).push(fd); }
@@ -1663,26 +1766,154 @@
           load:async()=>{ try{ return await itFace(`local("${fd.postscriptName}"), local("${fd.fullName}")`); }
                           catch{ return await itFace(await (await fd.blob()).arrayBuffer()); } }})));
       });
-      itRenderFamilies(); itLocalBtn.textContent=`PCのフォント（${fams.size}）`;
+      itRenderFamilies(); itLocalBtn.textContent=seLocalBtn.textContent=`PCのフォント（${fams.size}）`;
     }catch(err){ showProgress('PC のフォントを読み込めませんでした',err&&err.name==='NotAllowedError'?'フォントへのアクセスが許可されませんでした':String(err&&err.message||err).slice(0,120)); setTimeout(hideProgress,3000); }
-  });
+  }
+  itLocalBtn.addEventListener('click',loadLocalFonts);
   // font files: loaded with FontFace and kept on this device (IndexedDB) for next time
-  let itFontFiles=[];
+  let itFontFiles=[], fontFileFor='it';  // which tab's picker selects the newly loaded file
   function itAddFontFile(rec){
     itAddFamily('file-'+rec.id,rec.name.replace(/\.[^.]+$/,''),'読み込んだフォント',[{label:'標準',load:()=>itFace(rec.buf)}]);
   }
-  itFileBtn.addEventListener('click',()=>{ itFontInput.value=''; itFontInput.click(); });
+  itFileBtn.addEventListener('click',()=>{ fontFileFor='it'; itFontInput.value=''; itFontInput.click(); });
   itFontInput.addEventListener('change',async e=>{
     const file=e.target.files[0]; if(!file) return;
     try{
       const rec={id:Date.now().toString(36),name:file.name,buf:await file.arrayBuffer()};
       await itFace(rec.buf.slice(0));  // validate before keeping it
       itFontFiles.push(rec); idbSet('font-files',itFontFiles); itAddFontFile(rec);
-      itFamilyKey='file-'+rec.id; itStyleIdx=0; itRenderFamilies(); itChooseFont();
+      if(fontFileFor==='se'){ seFamilyKey='file-'+rec.id; seStyleIdx=0; itRenderFamilies(); seChooseFont(); }
+      else{ itFamilyKey='file-'+rec.id; itStyleIdx=0; itRenderFamilies(); itChooseFont(); }
     }catch(err){ showProgress('フォントを読み込めませんでした','対応形式: .ttf / .otf / .woff / .woff2'); setTimeout(hideProgress,2800); }
   });
   idbGet('font-files').then(v=>{ if(Array.isArray(v)){ itFontFiles=v; v.forEach(itAddFontFile); } itRenderFamilies(); });
   itRenderFamilies(); itSyncLabels();
+
+  /* ---------- Slack emoji: text -> square PNG (no image needed) ---------- */
+  const sePanel=$('sePanel'), seStage=$('seStage'), seText=$('seText'), seFamily=$('seFamily'), seStyle=$('seStyle');
+  const seLocalBtn=$('seLocalBtn'), seFileBtn=$('seFileBtn'), seColor=$('seColor'), seSwatches=$('seSwatches');
+  const seBgSeg=$('seBgSeg'), seBgColor=$('seBgColor'), seFitSeg=$('seFitSeg'), seSizeSeg=$('seSizeSeg');
+  const seMargin=$('seMargin'), seMarginVal=$('seMarginVal'), seGap=$('seGap'), seGapVal=$('seGapVal');
+  const seStrokeOn=$('seStrokeOn'), seStrokeColor=$('seStrokeColor'), seStrokeW=$('seStrokeW'), seStrokeWVal=$('seStrokeWVal');
+  const seInfo=$('seInfo'), seSaveBtn=$('seSaveBtn'), seBig=$('seBig'), seCap=$('seCap');
+  const SE_LIMIT=128*1024;  // Slack's upload limit for custom emoji
+  let seFamilyKey='sys-sans', seStyleIdx=1, seFont={css:'sans-serif',weight:700};
+  let seBg='none', seFit='fill', sePx=128, seUrl='', seBusy=false, seDirty=false, seBlob=null;
+
+  function seRenderFamilies(){
+    seFamily.innerHTML=itFamily.innerHTML; seFamily.value=seFamilyKey;
+    const f=itFamilies.get(seFamilyKey); seStyle.innerHTML='';
+    f.styles.forEach((st,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=st.label; seStyle.appendChild(o); });
+    seStyle.value=seStyleIdx; seStyle.style.display=f.styles.length>1?'':'none';
+  }
+  async function seChooseFont(){
+    const st=itFamilies.get(seFamilyKey).styles[seStyleIdx];
+    try{ if(!st.css) st.css=await st.load(); seFont={css:st.css,weight:st.weight||400}; seSchedule(); }
+    catch(err){ showProgress('フォントを読み込めませんでした',String(err&&err.message||err).slice(0,120)); setTimeout(hideProgress,2800); }
+  }
+  famListeners.push(seRenderFamilies); seRenderFamilies();
+  seFamily.addEventListener('change',()=>{ seFamilyKey=seFamily.value; seStyleIdx=0; seRenderFamilies(); seChooseFont(); });
+  seStyle.addEventListener('change',()=>{ seStyleIdx=parseInt(seStyle.value,10); seChooseFont(); });
+  if(!('queryLocalFonts' in window)){ seLocalBtn.disabled=true; seLocalBtn.title=itLocalBtn.title; }
+  seLocalBtn.addEventListener('click',loadLocalFonts);
+  seFileBtn.addEventListener('click',()=>{ fontFileFor='se'; itFontInput.value=''; itFontInput.click(); });
+
+  ['#1d1c1d','#ffffff','#e01e5a','#f2711c','#ecb22e','#2eb67d','#1264a3','#7c3aed'].forEach(c=>{
+    const b=document.createElement('button'); b.style.background=c; b.title=c;
+    b.addEventListener('click',()=>{ seColor.value=c; seSchedule(); }); seSwatches.appendChild(b);
+  });
+  seBgSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ seBg=b.dataset.bg; setSegOn(seBgSeg,'bg',seBg); seBgColor.style.display=seBg==='color'?'':'none'; seSchedule(); }));
+  seFitSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ seFit=b.dataset.fit; setSegOn(seFitSeg,'fit',seFit); seSchedule(); }));
+  seSizeSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ sePx=parseInt(b.dataset.px,10); setSegOn(seSizeSeg,'px',b.dataset.px); seSchedule(); }));
+  [seText,seColor,seBgColor,seMargin,seGap,seStrokeOn,seStrokeColor,seStrokeW].forEach(el=>el.addEventListener('input',()=>{
+    seMarginVal.textContent=seMargin.value; seGapVal.textContent=seGap.value; seStrokeWVal.textContent=seStrokeW.value; seSchedule();
+  }));
+  seStrokeOn.addEventListener('change',seSchedule);
+
+  // squared Euclidean distance transform (Felzenszwalb & Huttenlocher), in place
+  function seEdt1d(g,off,stride,len,f,v,z){
+    v[0]=0; z[0]=-1e20; z[1]=1e20; f[0]=g[off];
+    for(let q=1,k=0,s=0;q<len;q++){
+      f[q]=g[off+q*stride]; const q2=q*q;
+      do{ const r=v[k]; s=(f[q]-f[r]+q2-r*r)/(q-r)/2; }while(s<=z[k]&&--k>-1);
+      k++; v[k]=q; z[k]=s; z[k+1]=1e20;
+    }
+    for(let q=0,k=0;q<len;q++){ while(z[k+1]<q) k++; const r=v[k], d=q-r; g[off+q*stride]=f[r]+d*d; }
+  }
+  // outline of uniform thickness r around the text's alpha, even where the text is squeezed or stretched
+  function seOutline(T,W,r,color){
+    const src=T.getContext('2d').getImageData(0,0,W,W).data, g=new Float64Array(W*W);
+    for(let i=0;i<W*W;i++) g[i]=src[i*4+3]>=128?0:1e20;
+    const f=new Float64Array(W), v=new Uint32Array(W), z=new Float64Array(W+1);
+    for(let x=0;x<W;x++) seEdt1d(g,x,W,W,f,v,z);
+    for(let y=0;y<W;y++) seEdt1d(g,y*W,1,W,f,v,z);
+    const O=document.createElement('canvas'); O.width=O.height=W;
+    const o=O.getContext('2d'), id=o.createImageData(W,W), p=id.data;
+    const cr=parseInt(color.slice(1,3),16), cg=parseInt(color.slice(3,5),16), cb=parseInt(color.slice(5,7),16);
+    for(let i=0;i<W*W;i++){
+      const a=Math.max(src[i*4+3]/255,Math.min(1,Math.max(0,r+1-Math.sqrt(g[i]))));
+      if(a>0){ const j=i*4; p[j]=cr; p[j+1]=cg; p[j+2]=cb; p[j+3]=Math.round(a*255); }
+    }
+    o.putImageData(id,0,0); return O;
+  }
+  function seRender(){
+    const N=sePx, S=N>=512?2:4, W=N*S, u=W/128, R=200;  // u: one pixel of a 128px emoji, in working pixels
+    const T=document.createElement('canvas'); T.width=T.height=W;
+    const t=T.getContext('2d',{willReadFrequently:true});
+    t.font=itFontStr({font:seFont,size:R}); t.textBaseline='alphabetic'; t.textAlign='left'; t.fillStyle=seColor.value;
+    const lines=seText.value.replace(/\r/g,'').split('\n');
+    while(lines.length>1&&!lines[lines.length-1].trim()) lines.pop();
+    const ms=lines.map(s=>{ if(!s.trim()) return {s,w:0}; const m=t.measureText(s);
+      return {s,l:m.actualBoundingBoxLeft,w:m.actualBoundingBoxLeft+m.actualBoundingBoxRight,a:m.actualBoundingBoxAscent,d:m.actualBoundingBoxDescent}; });
+    const ink=ms.filter(L=>L.w>0), n=lines.length;
+    const ow=seStrokeOn.checked?(+seStrokeW.value)*u:0, pad=(+seMargin.value)*u+ow, gap=(+seGap.value)*u, box=W-2*pad;
+    if(ink.length&&box>0){
+      const A=Math.max(...ink.map(L=>L.a)), D=Math.max(...ink.map(L=>L.d)), lh=A+D;
+      if(seFit==='fill'){  // every line spans the full width; lines share the height
+        const slot=Math.max(1,(box-gap*(n-1))/n), sy=slot/lh;
+        ms.forEach((L,i)=>{ if(!L.w) return; const sx=box/L.w;
+          t.setTransform(sx,0,0,sy,pad+L.l*sx,pad+i*(slot+gap)+A*sy); t.fillText(L.s,0,0); });
+      }else{  // keep the letter shapes: one scale for the whole block, centred
+        const maxw=Math.max(...ink.map(L=>L.w)), s=Math.max(0.01,Math.min(box/maxw,(box-gap*(n-1))/(n*lh)));
+        const y0=pad+(box-(n*lh*s+gap*(n-1)))/2;
+        ms.forEach((L,i)=>{ if(!L.w) return;
+          t.setTransform(s,0,0,s,W/2-L.w*s/2+L.l*s,y0+i*(lh*s+gap)+A*s); t.fillText(L.s,0,0); });
+      }
+    }
+    const C=document.createElement('canvas'); C.width=C.height=W; const c=C.getContext('2d');
+    if(seBg==='color'){ c.fillStyle=seBgColor.value; c.fillRect(0,0,W,W); }
+    if(ow>0&&ink.length) c.drawImage(seOutline(T,W,ow,seStrokeColor.value),0,0);
+    c.drawImage(T,0,0);
+    let cur=C;  // supersampled -> output size, halving each step
+    while(cur.width>N){ const h=cur.width/2, nx=document.createElement('canvas'); nx.width=nx.height=h;
+      const x=nx.getContext('2d'); x.imageSmoothingQuality='high'; x.drawImage(cur,0,0,h,h); cur=nx; }
+    return cur;
+  }
+  const seEncode=()=>new Promise(res=>seRender().toBlob(res,'image/png'));
+  async function seUpdate(){
+    if(seBusy){ seDirty=true; return; }
+    seBusy=true;
+    try{
+      do{
+        seDirty=false;
+        const blob=await seEncode(); if(!blob) break;
+        if(seUrl) URL.revokeObjectURL(seUrl);
+        seBlob=blob; seUrl=URL.createObjectURL(blob);
+        seBig.src=seUrl; seStage.querySelectorAll('.se-e').forEach(im=>im.src=seUrl);
+        const kb=blob.size/1024;
+        seCap.textContent=`${sePx} × ${sePx} px`;
+        seInfo.innerHTML=`PNG <b>${kb<10?kb.toFixed(1):Math.round(kb)} KB</b>`+(blob.size>SE_LIMIT?'（Slack の上限 128KB を超えています）':'（Slack の上限 128KB）');
+      }while(seDirty);
+    }finally{ seBusy=false; }
+  }
+  let seRaf=0;
+  function seSchedule(){ if(seRaf) return; seRaf=requestAnimationFrame(()=>{ seRaf=0; seUpdate(); }); }
+  async function seSave(){
+    const blob=await seEncode(); if(!blob) return;
+    const name=seText.value.trim().replace(/\s+/g,'_').replace(/[\\/:*?"<>|]/g,'').slice(0,40)||'emoji';
+    await deliverFile(blob,`${name}.png`,'image/png');
+  }
+  seSaveBtn.addEventListener('click',seSave);
 
   /* ---------- PDF: open, write text, save (pdf.js renders, pdf-lib saves) ---------- */
   const PDFJS_V='6.4.299', PDFLIB_V='1.17.1';
