@@ -181,13 +181,14 @@
   canvas{position:absolute;inset:0;width:100%;height:100%;display:none;z-index:1;touch-action:none;}
   canvas.loaded{display:block;}
 
-  .zoomctl{position:absolute;right:12px;bottom:12px;z-index:4;display:none;gap:6px;padding:5px;background:rgba(26,19,32,.55);backdrop-filter:blur(8px);border-radius:12px;}
+  /* zoom controls live in the bottom toolbar, so they never cover the image */
+  .zoomctl{flex:none;display:none;align-items:center;gap:2px;padding:3px;background:var(--surface);border:1px solid var(--line);border-radius:11px;}
   .zoomctl.show{display:flex;}
-  .zoomctl button{appearance:none;border:none;cursor:pointer;width:38px;height:38px;border-radius:9px;background:rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;transition:background .15s;}
-  .zoomctl button:hover{background:rgba(255,255,255,.18);}
+  .zoomctl button{appearance:none;border:none;cursor:pointer;width:36px;height:36px;border-radius:8px;background:transparent;color:var(--ink);display:flex;align-items:center;justify-content:center;transition:background .15s;}
+  .zoomctl button:hover{background:var(--bg);}
   .zoomctl button:active{transform:scale(.94);}
   .zoomctl button svg{width:18px;height:18px;}
-  .zoomlabel{position:absolute;left:12px;bottom:14px;z-index:4;display:none;font-size:12px;font-weight:700;color:rgba(255,255,255,.75);background:rgba(26,19,32,.5);padding:6px 11px;border-radius:9px;backdrop-filter:blur(8px);font-variant-numeric:tabular-nums;}
+  .zoomlabel{display:none;min-width:48px;text-align:center;font-size:12px;font-weight:700;color:var(--ink-soft);font-variant-numeric:tabular-nums;}
   .zoomlabel.show{display:block;}
 
   .drop{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:32px;text-align:center;z-index:5;transition:background .18s;}
@@ -235,6 +236,7 @@
     .tool-hint{display:none;}
     .toolbar{gap:8px;}
     .toolbar .btn{flex:1;justify-content:center;}
+    #zoomOut, #zoomIn, .zoomlabel.show{display:none;}  /* phones zoom with two fingers; keep only "fit" */
   }
 </style>
 </head>
@@ -511,12 +513,6 @@
         <div class="psub" id="progressSub"></div>
       </div>
       <canvas id="canvas"></canvas>
-      <div class="zoomlabel" id="zoomlabel">100%</div>
-      <div class="zoomctl" id="zoomctl">
-        <button id="zoomOut" title="縮小"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
-        <button id="zoomFit" title="全体表示"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M21 16v3a2 2 0 0 1-2 2h-3"/></svg></button>
-        <button id="zoomIn" title="拡大"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
-      </div>
       <div class="drop" id="drop">
         <div class="drop-ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
         <p>写真・PDF を<b>ドラッグ＆ドロップ</b><br>または下のボタンから選択</p>
@@ -546,6 +542,12 @@
 
   <div class="toolbar">
     <div class="tool-hint" id="hint">写真を読み込んでください</div>
+    <div class="zoomctl" id="zoomctl">
+      <button id="zoomOut" title="縮小"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+      <div class="zoomlabel" id="zoomlabel">100%</div>
+      <button id="zoomFit" title="全体表示"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M21 16v3a2 2 0 0 1-2 2h-3"/></svg></button>
+      <button id="zoomIn" title="拡大"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
+    </div>
     <button class="btn btn-ghost" id="replaceBtn" disabled>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
       別のファイル
