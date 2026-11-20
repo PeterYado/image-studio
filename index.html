@@ -107,6 +107,13 @@
   .target span{font-size:12px;font-weight:700;color:var(--ink-soft);white-space:nowrap;}
   .sizeinfo{font-size:12px;color:var(--ink-soft);line-height:1.5;}
   .sizeinfo b{color:var(--accent-deep);font-variant-numeric:tabular-nums;}
+  /* text panel */
+  .it-text textarea{width:260px;height:40px;resize:vertical;padding:6px 9px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px;line-height:1.35;color:var(--ink);background:var(--bg);}
+  .uppanel select{max-width:220px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;font-weight:700;color:var(--ink);background:var(--bg);}
+  .uppanel input[type=color]{width:34px;height:30px;padding:0 2px;border:1px solid var(--line);border-radius:7px;background:var(--bg);cursor:pointer;}
+  .uppanel input[type=number]{width:64px;padding:6px 6px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;font-weight:700;color:var(--ink);background:var(--bg);}
+  .it-font{flex-wrap:wrap;}
+  .it-sec{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding-top:10px;border-top:1px dashed var(--line);}
   /* pdf panel */
   .pager{display:flex;align-items:center;gap:6px;}
   .pager span{font-size:13px;font-weight:700;color:var(--ink);min-width:52px;text-align:center;font-variant-numeric:tabular-nums;}
@@ -136,7 +143,11 @@
     .up-actions{margin-left:0;flex:1;}
     .up-actions .btn{flex:1;justify-content:center;}
     .sizeinfo{flex-basis:100%;}
-    .pdf-text{flex-basis:100%;}
+    .pdf-text, .it-text, .it-font{flex-basis:100%;}
+    .it-font select{flex:1;min-width:0;}
+    #textpanel.show{max-height:46vh;overflow-y:auto;}  /* keep room for the image on phones */
+    .tab{font-size:12.5px;letter-spacing:0;white-space:nowrap;}
+    .it-text textarea{flex:1;width:auto;min-width:0;}
     .pdf-text input{flex:1;width:auto;min-width:0;}
   }
 
@@ -201,6 +212,7 @@
       <button class="tab active" data-tab="mosaic" role="tab">モザイク</button>
       <button class="tab" data-tab="upscale" role="tab">画質アップ</button>
       <button class="tab" data-tab="convert" role="tab">形式変換</button>
+      <button class="tab" data-tab="text" role="tab">テキスト</button>
       <button class="tab" data-tab="pdf" role="tab">PDF</button>
     </div>
   </header>
@@ -299,6 +311,68 @@
     </div>
   </div>
 
+  <div class="uppanel" id="textpanel">
+    <div class="group it-text">
+      <span class="group-label">文字</span>
+      <textarea id="itText" rows="2" placeholder="入力してから画像をタップ（改行できます）"></textarea>
+    </div>
+    <div class="group it-font">
+      <span class="group-label">フォント</span>
+      <select id="itFamily"></select>
+      <select id="itStyle"></select>
+      <button class="btn btn-ghost btn-sm" id="itLocalBtn" title="この PC にインストールされているフォントを一覧に追加">PCのフォント</button>
+      <button class="btn btn-ghost btn-sm" id="itFileBtn" title="フォントファイル（.ttf / .otf / .woff2）を読み込む">ファイル…</button>
+    </div>
+    <div class="ctl" style="min-width:220px;">
+      <label>サイズ</label>
+      <input type="range" id="itSize" min="8" max="400" value="64" step="1">
+      <input type="number" id="itSizeNum" min="4" max="5000" value="64">
+    </div>
+    <div class="group">
+      <span class="group-label">色</span><input type="color" id="itColor" value="#ffffff">
+    </div>
+    <div class="ctl">
+      <label>不透明度</label>
+      <input type="range" id="itOpacity" min="0" max="100" value="100" step="1">
+      <span class="val" id="itOpacityVal" style="min-width:38px;">100%</span>
+    </div>
+    <div class="group">
+      <span class="group-label">揃え</span>
+      <div class="seg" id="itAlignSeg"><button data-align="left">左</button><button data-align="center" class="on">中央</button><button data-align="right">右</button></div>
+    </div>
+    <div class="ctl">
+      <label>字間</label>
+      <input type="range" id="itSpacing" min="-20" max="100" value="0" step="1">
+      <span class="val" id="itSpacingVal">0</span>
+    </div>
+    <div class="ctl">
+      <label>角度</label>
+      <input type="range" id="itAngle" min="-180" max="180" value="0" step="1">
+      <span class="val" id="itAngleVal" style="min-width:38px;">0°</span>
+    </div>
+    <div class="it-sec">
+      <div class="seg" id="itFxSeg"><button data-fx="stroke" class="on">縁取り</button><button data-fx="shadow">影</button><button data-fx="glow">光彩</button></div>
+      <label class="chk fx-stroke"><input type="checkbox" id="itStrokeOn" checked>縁取りあり</label>
+      <span class="group fx-stroke"><span class="group-label">色</span><input type="color" id="itStrokeColor" value="#333333"></span>
+      <div class="ctl fx-stroke"><label>太さ</label><input type="range" id="itStrokeW" min="1" max="60" value="4" step="1"><span class="val" id="itStrokeWVal">4</span></div>
+      <label class="chk fx-shadow"><input type="checkbox" id="itShadowOn">影あり</label>
+      <span class="group fx-shadow"><span class="group-label">色</span><input type="color" id="itShadowColor" value="#000000"></span>
+      <div class="ctl fx-shadow"><label>不透明度</label><input type="range" id="itShadowOp" min="0" max="100" value="60" step="1"><span class="val" id="itShadowOpVal" style="min-width:38px;">60%</span></div>
+      <div class="ctl fx-shadow"><label>ぼかし</label><input type="range" id="itShadowBlur" min="0" max="100" value="12" step="1"><span class="val" id="itShadowBlurVal">12</span></div>
+      <div class="ctl fx-shadow"><label>距離</label><input type="range" id="itShadowDist" min="0" max="100" value="8" step="1"><span class="val" id="itShadowDistVal">8</span></div>
+      <div class="ctl fx-shadow"><label>方向</label><input type="range" id="itShadowDir" min="0" max="359" value="45" step="1"><span class="val" id="itShadowDirVal" style="min-width:38px;">45°</span></div>
+      <label class="chk fx-glow"><input type="checkbox" id="itGlowOn">光彩あり</label>
+      <span class="group fx-glow"><span class="group-label">色</span><input type="color" id="itGlowColor" value="#ffffff"></span>
+      <div class="ctl fx-glow"><label>大きさ</label><input type="range" id="itGlowSize" min="1" max="120" value="24" step="1"><span class="val" id="itGlowSizeVal">24</span></div>
+      <div class="ctl fx-glow"><label>強さ</label><input type="range" id="itGlowStr" min="1" max="6" value="2" step="1"><span class="val" id="itGlowStrVal">2</span></div>
+    </div>
+    <div class="panel-actions">
+      <button class="btn btn-ghost btn-sm" id="itDupBtn" disabled>複製</button>
+      <button class="btn btn-ghost btn-sm" id="itDelBtn" disabled>削除</button>
+      <button class="btn btn-ghost btn-sm" id="itUndoBtn" disabled>元に戻す</button>
+    </div>
+  </div>
+
   <div class="uppanel" id="pdfpanel">
     <span class="pdf-note" id="pdfNote">PDF ファイルを開くと、文字を書き込めます</span>
     <button class="btn btn-ghost btn-sm" id="pdfOpenBtn">PDFを開く</button>
@@ -389,6 +463,7 @@
 
   <input type="file" id="fileInput" accept="image/*,application/pdf,.pdf" hidden>
   <input type="file" id="stampInput" accept="image/*" hidden>
+  <input type="file" id="itFontInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" hidden>
 
   <div class="emoji-picker-backdrop" id="pickerBackdrop"></div>
   <div class="emoji-picker" id="emojiPicker">
@@ -420,6 +495,14 @@
   const pdfText=$('pdfText'), pdfSize=$('pdfSize'), pdfSizeVal=$('pdfSizeVal'), pdfFontSeg=$('pdfFontSeg'), pdfColorSeg=$('pdfColorSeg');
   const pdfDelBtn=$('pdfDelBtn'), pdfUndoBtn=$('pdfUndoBtn'), pdfSaveBtn=$('pdfSaveBtn'), pdfToolSeg=$('pdfToolSeg');
   const stampList=$('stampList'), stampAddBtn=$('stampAddBtn'), stampWhite=$('stampWhite'), stampInput=$('stampInput');
+  const textpanel=$('textpanel'), itText=$('itText'), itFamily=$('itFamily'), itStyle=$('itStyle'), itLocalBtn=$('itLocalBtn'), itFileBtn=$('itFileBtn'), itFontInput=$('itFontInput');
+  const itSize=$('itSize'), itSizeNum=$('itSizeNum'), itColor=$('itColor'), itOpacity=$('itOpacity'), itOpacityVal=$('itOpacityVal'), itAlignSeg=$('itAlignSeg');
+  const itSpacing=$('itSpacing'), itSpacingVal=$('itSpacingVal'), itAngle=$('itAngle'), itAngleVal=$('itAngleVal'), itFxSeg=$('itFxSeg');
+  const itStrokeOn=$('itStrokeOn'), itStrokeColor=$('itStrokeColor'), itStrokeW=$('itStrokeW'), itStrokeWVal=$('itStrokeWVal');
+  const itShadowOn=$('itShadowOn'), itShadowColor=$('itShadowColor'), itShadowOp=$('itShadowOp'), itShadowOpVal=$('itShadowOpVal');
+  const itShadowBlur=$('itShadowBlur'), itShadowBlurVal=$('itShadowBlurVal'), itShadowDist=$('itShadowDist'), itShadowDistVal=$('itShadowDistVal'), itShadowDir=$('itShadowDir'), itShadowDirVal=$('itShadowDirVal');
+  const itGlowOn=$('itGlowOn'), itGlowColor=$('itGlowColor'), itGlowSize=$('itGlowSize'), itGlowSizeVal=$('itGlowSizeVal'), itGlowStr=$('itGlowStr'), itGlowStrVal=$('itGlowStrVal');
+  const itDupBtn=$('itDupBtn'), itDelBtn=$('itDelBtn'), itUndoBtn=$('itUndoBtn');
   const stampSize=$('stampSize'), stampSizeVal=$('stampSizeVal'), penWidth=$('penWidth'), penWidthVal=$('penWidthVal');
 
   let currentTab='mosaic', hasImage=false, sourceName='image', sourceBytes=0;
@@ -431,7 +514,9 @@
   let outFormat='jpg';
   // PDF mode: {doc (pdf.js), bytes (original file), cur, pages:[{ops, redo, vp, rs}]}; null for images
   let pdfDoc=null, selItemIdx=-1, itemDrag=null, pdfFont='mincho', pdfColor='#000000';
-  let pdfTool='text', myStamps=[], curStamp=null, penPts=null;  // tool: 'text' | 'stamp' | 'pen'
+  let pdfTool='text', myStamps=[], curStamp=null, penPts=null;
+  // テキスト tab: selected image-text op, drag state, effects page, chosen font
+  let itSel=-1, itDrag=null, itFx='stroke', itFont={css:'sans-serif',weight:400,label:'システム（ゴシック）'};  // tool: 'text' | 'stamp' | 'pen'
 
   // layers
   const base=document.createElement('canvas'), bctx=base.getContext('2d');
@@ -448,6 +533,7 @@
 
   /* ---------- effect application ---------- */
   function applyOp(op){
+    if(op.type==='itext'){ drawIText(op); return; }
     if(op.type==='text'){ if(op.text&&pdfDoc) drawText(cctx,op,op.pt*pageRS(),op.x,op.y); return; }
     if(op.type==='stamp'){ const b=itemBox(op); cctx.drawImage(op.stamp.img,b.x,b.y,b.w,b.h); return; }
     if(op.type==='pen'){ strokePen(cctx,op.pts,op.w*pageRS(),op.color); return; }
@@ -615,6 +701,15 @@
       ctx.restore();
     }
     if(penPts&&pdfDoc) strokePen(ctx,penPts,parseFloat(penWidth.value)*pageRS(),pdfColor);
+    if(currentTab==='text' && itSel>=0 && operations[itSel]){
+      const H=itHandles(operations[itSel]);
+      ctx.save(); ctx.lineWidth=1.5*dpr/scale; ctx.strokeStyle='#6B3FA0'; ctx.setLineDash([6*dpr/scale,4*dpr/scale]);
+      ctx.beginPath(); ctx.moveTo(H.corners[0].x,H.corners[0].y); for(let i=1;i<4;i++) ctx.lineTo(H.corners[i].x,H.corners[i].y); ctx.closePath(); ctx.stroke();
+      ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(H.topMid.x,H.topMid.y); ctx.lineTo(H.rotate.x,H.rotate.y); ctx.stroke();
+      const r=7*dpr/scale; ctx.fillStyle='#fff';
+      [H.resize,H.rotate].forEach(q=>{ ctx.beginPath(); ctx.arc(q.x,q.y,r,0,Math.PI*2); ctx.fill(); ctx.stroke(); });
+      ctx.restore();
+    }
     if(currentTab==='pdf' && pdfDoc && selItemIdx>=0 && operations[selItemIdx]){
       const b=itemBox(operations[selItemIdx]), pad=3*dpr/scale;
       ctx.save(); ctx.lineWidth=1.5*dpr/scale; ctx.strokeStyle='#6B3FA0'; ctx.setLineDash([6*dpr/scale,4*dpr/scale]);
@@ -664,6 +759,10 @@
         if(document.activeElement===pdfText) pdfText.blur();
         if(pdfPointerDown(c)){ e.preventDefault(); return; }
       }
+      if(itActive()&&e.button!==1&&!spaceHeld){
+        if(document.activeElement===itText) itText.blur();  // commit any IME conversion first
+        if(itPointerDown(c)){ e.preventDefault(); return; }
+      }
       if(canEdit()&&!isPanInput(e)){
         const p=canvasToImg(c);
         if(effect==='sticker'){
@@ -698,6 +797,8 @@
       render();
     }else if(gesture==='brush'&&brushPts){
       brushPts.push(canvasToImg(toCanvas(e))); render();
+    }else if(gesture&&gesture.startsWith('it-')&&itDrag&&operations[itSel]){
+      itPointerMove(canvasToImg(toCanvas(e)));
     }else if(gesture==='pen'&&penPts){
       const p=canvasToImg(toCanvas(e)), l=penPts[penPts.length-1];
       if(Math.hypot(p.x-l.x,p.y-l.y)>=0.6) penPts.push(p);
@@ -728,6 +829,7 @@
     }else if(g&&g.startsWith('sticker-')){
       stickerStart=null; updateEditState();
     }else if(g==='item-move'){ itemDrag=null; }
+    else if(g&&g.startsWith('it-')){ itDrag=null; }
     else if(g==='pen'&&penPts){
       operations.push({type:'pen',pts:penPts,w:parseFloat(penWidth.value),color:pdfColor}); redoStack.length=0;
       penPts=null; buildComposite(); updateEditState();
@@ -749,16 +851,17 @@
 
   /* ---------- keyboard shortcuts ---------- */
   window.addEventListener('keydown',e=>{
-    if(e.target.tagName==='INPUT') return;
+    if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;  // typing in a field: no shortcuts
     if(e.code==='Space'&&hasImage){ spaceHeld=true; if(!gesture) setCursor('grab'); e.preventDefault(); return; }
     const meta=e.metaKey||e.ctrlKey;
     if((e.key==='Delete'||e.key==='Backspace')&&currentTab==='pdf'&&selItemIdx>=0){ e.preventDefault(); deleteSelectedItem(); return; }
+    if((e.key==='Delete'||e.key==='Backspace')&&currentTab==='text'&&itSel>=0){ e.preventDefault(); itDelete(); return; }
     if(meta&&e.key.toLowerCase()==='z'){ e.preventDefault(); if(e.shiftKey) redo(); else undo(); }
     else if(meta&&e.key.toLowerCase()==='s'){ e.preventDefault(); doSave(); }
   });
   window.addEventListener('keyup',e=>{ if(e.code==='Space'){ spaceHeld=false; if(!gesture) setCursor(); } });
 
-  function setCursor(force){ if(force){canvas.style.cursor=force;return;} canvas.style.cursor=(canEdit()||(currentTab==='pdf'&&pdfDoc))?'crosshair':(hasImage?'grab':'default'); }
+  function setCursor(force){ if(force){canvas.style.cursor=force;return;} canvas.style.cursor=(canEdit()||itActive()||(currentTab==='pdf'&&pdfDoc))?'crosshair':(hasImage?'grab':'default'); }
 
   /* ---------- effect / mode / sliders ---------- */
   effectSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
@@ -900,12 +1003,14 @@
   function updateEditState(){
     const on=canEdit()&&operations.length>0; undoBtn.disabled=!on; clearBtn.disabled=!on;
     pdfUndoBtn.disabled=!(pdfDoc&&operations.length>0); pdfDelBtn.disabled=selItemIdx<0;
+    itUndoBtn.disabled=!(hasImage&&!pdfDoc&&operations.length>0); itDelBtn.disabled=itDupBtn.disabled=itSel<0;
   }
 
   /* ---------- tabs ---------- */
   function setTab(name){
     tabs.forEach(x=>x.classList.toggle('active',x.dataset.tab===name)); currentTab=name;
     if(name!=='pdf'&&selItemIdx>=0) deselectItem();
+    if(name!=='text'&&itSel>=0) itDeselect();
     refreshUI();
   }
   tabs.forEach(t=>t.addEventListener('click',()=>setTab(t.dataset.tab)));
@@ -916,6 +1021,8 @@
     uppanel.classList.toggle('show',hasImage&&up);
     convpanel.classList.toggle('show',hasImage&&cv);
     pdfpanel.classList.toggle('show',hasImage&&pd);
+    textpanel.classList.toggle('show',hasImage&&currentTab==='text');
+    textpanel.querySelectorAll('.fx-stroke,.fx-shadow,.fx-glow').forEach(el=>el.style.display=el.classList.contains('fx-'+itFx)?'':'none');
     pdfpanel.querySelectorAll('.pdf-only').forEach(el=>{
       const tools=[...el.classList].filter(c=>c.startsWith('pt-')).map(c=>c.slice(3));  // pt-<tool>: shown for that tool only
       el.style.display=pdfDoc&&(!tools.length||tools.includes(pdfTool))?'':'none';
@@ -926,6 +1033,7 @@
     zoomctl.classList.toggle('show',hasImage);
     zoomlabel.classList.toggle('show',hasImage);
     if(!hasImage) hint.textContent='写真または PDF を読み込んでください';
+    else if(currentTab==='text') hint.innerHTML='文字を入力して画像をタップ／ドラッグで移動、○ で大きさ・角度（Shift で 15° 刻み）';
     else if(pd) hint.innerHTML=!pdfDoc?'PDF ファイルを開いてください'
       : pdfTool==='stamp'?'印鑑を選んでページをタップ／印鑑はドラッグで移動、タップで選択して大きさを変更'
       : pdfTool==='pen'?'ドラッグで手書き／画面の移動・拡大は 2 本指（PC はスペース＋ドラッグ、ホイール）'
@@ -950,6 +1058,7 @@
       comp.width=img.naturalWidth; comp.height=img.naturalHeight;
       bctx.setTransform(1,0,0,1,0,0); bctx.clearRect(0,0,base.width,base.height); bctx.drawImage(img,0,0);
       closePdf(); if(currentTab==='pdf') setTab('mosaic');
+      itSel=-1; itDrag=null; itFitSizeRange(img.naturalWidth,img.naturalHeight);
       operations=[]; redoStack=[]; selStickerIdx=-1; URL.revokeObjectURL(url);
       hasImage=true; canvas.classList.add('loaded'); drop.classList.add('hide');
       saveBtn.disabled=false; replaceBtn.disabled=false;
@@ -1362,6 +1471,218 @@
       setTimeout(hideProgress,3200);
     }finally{ upscaling=false; upscaleBtn.disabled=false; }
   });
+
+  /* ---------- テキスト: styled text drawn at full resolution (outline, shadow, glow, rotation) ---------- */
+  const itActive=()=>hasImage&&currentTab==='text'&&!pdfDoc;
+  const itMeasure=document.createElement('canvas').getContext('2d');
+  const GENERIC=new Set(['sans-serif','serif','monospace','cursive','fantasy','system-ui']);
+  const itFontStr=op=>`${op.font.weight||400} ${op.size}px ${GENERIC.has(op.font.css)?op.font.css:`"${op.font.css}"`}, sans-serif`;
+  function itSetup(c,op){ c.font=itFontStr(op); if('letterSpacing' in c) c.letterSpacing=(op.spacing||0)+'px'; c.textBaseline='middle'; }
+  function itMetrics(op){
+    itSetup(itMeasure,op);
+    const lines=op.text.split('\n'), lh=op.size*1.25, ws=lines.map(l=>itMeasure.measureText(l).width);
+    return {lines,lh,w:Math.max(op.size*0.3,...ws),h:lh*lines.length};
+  }
+  const hexA=(hex,a)=>{ const n=parseInt(hex.slice(1),16); return `rgba(${n>>16},${(n>>8)&255},${n&255},${a})`; };
+  // Draw into a layer covering the rotated box, then put it on the image at an integer offset: the text
+  // is rendered once at full resolution (no resampling) and nothing outside its box is touched.
+  // Order: glow, shadow (each as shadow only, so no fringe of their colour on the glyphs), outline, fill.
+  function drawIText(op){
+    if(!op.text.trim()) return;
+    const m=itMetrics(op), sw=op.stroke.on?op.stroke.width:0;
+    const pad=Math.ceil(sw+Math.max(op.glow.on?op.glow.size*2:0, op.shadow.on?op.shadow.blur*2+op.shadow.dist:0)+4);
+    const hw=m.w/2+pad, hh=m.h/2+pad, cos=Math.cos(op.angle), sin=Math.sin(op.angle);
+    const ex=Math.abs(hw*cos)+Math.abs(hh*sin), ey=Math.abs(hw*sin)+Math.abs(hh*cos);
+    const lx=Math.max(0,Math.floor(op.cx-ex)), ly=Math.max(0,Math.floor(op.cy-ey));
+    const lw=Math.min(comp.width,Math.ceil(op.cx+ex))-lx, lh=Math.min(comp.height,Math.ceil(op.cy+ey))-ly;
+    if(lw<=0||lh<=0) return;
+    const L=document.createElement('canvas'); L.width=lw; L.height=lh; const c=L.getContext('2d');
+    const ax=op.align==='left'?-m.w/2:op.align==='right'?m.w/2:0, y=i=>-m.h/2+m.lh*(i+0.5);
+    const place=(dx)=>{ c.setTransform(1,0,0,1,dx,0); c.translate(op.cx-lx,op.cy-ly); c.rotate(op.angle); itSetup(c,op); c.textAlign=op.align; c.lineJoin='round'; };
+    const shape=(fill,stroke)=>m.lines.forEach((l,i)=>{ if(stroke) c.strokeText(l,ax,y(i)); if(fill) c.fillText(l,ax,y(i)); });
+    // shadow-only pass: draw the shape far off to the left and throw its shadow back into place
+    const OFF=lw+lh+4096;
+    const shadowOnly=(color,blur,dx,dy,passes)=>{
+      c.save(); place(-OFF); c.shadowColor=color; c.shadowBlur=blur; c.shadowOffsetX=dx+OFF; c.shadowOffsetY=dy;
+      c.fillStyle=c.strokeStyle='#000'; c.lineWidth=sw*2;
+      for(let k=0;k<passes;k++) shape(true,sw>0);
+      c.restore();
+    };
+    if(op.glow.on) shadowOnly(op.glow.color,op.glow.size,0,0,op.glow.strength);
+    if(op.shadow.on){ const r=op.shadow.dir*Math.PI/180;  // canvas shadow offsets ignore the rotation: the direction stays fixed on the image
+      shadowOnly(hexA(op.shadow.color,op.shadow.opacity/100),op.shadow.blur,Math.cos(r)*op.shadow.dist,Math.sin(r)*op.shadow.dist,1); }
+    c.save(); place(0);
+    if(sw>0){ c.strokeStyle=op.stroke.color; c.lineWidth=sw*2; shape(false,true); }  // centred on the glyph edge: the fill covers the inner half
+    c.fillStyle=op.color; shape(true,false);
+    c.restore();
+    cctx.save(); cctx.setTransform(1,0,0,1,0,0); cctx.globalAlpha=op.opacity/100; cctx.drawImage(L,lx,ly); cctx.restore();
+  }
+  function itHandles(op){
+    const m=itMetrics(op), pad=4*dpr/scale+(op.stroke.on?op.stroke.width:0), hw=m.w/2+pad, hh=m.h/2+pad;
+    const cos=Math.cos(op.angle), sin=Math.sin(op.angle), Lp=(x,y)=>({x:op.cx+x*cos-y*sin, y:op.cy+x*sin+y*cos});
+    return {hw,hh,corners:[Lp(-hw,-hh),Lp(hw,-hh),Lp(hw,hh),Lp(-hw,hh)],resize:Lp(hw,hh),topMid:Lp(0,-hh),rotate:Lp(0,-hh-26*dpr/scale)};
+  }
+  function itHit(p){
+    for(let i=operations.length-1;i>=0;i--){
+      const op=operations[i]; if(op.type!=='itext') continue;
+      const H=itHandles(op), dx=p.x-op.cx, dy=p.y-op.cy, cos=Math.cos(-op.angle), sin=Math.sin(-op.angle);
+      if(Math.abs(dx*cos-dy*sin)<=H.hw&&Math.abs(dx*sin+dy*cos)<=H.hh) return i;
+    }
+    return -1;
+  }
+  function itPointerDown(c){
+    const p=canvasToImg(c), rPix=16*dpr;
+    if(itSel>=0&&operations[itSel]){
+      const op=operations[itSel], H=itHandles(op), near=q=>{ const k=imgToCanvas(q); return Math.hypot(c.x-k.x,c.y-k.y)<rPix; };
+      if(near(H.rotate)){ gesture='it-rotate'; itDrag={}; return true; }
+      if(near(H.resize)){ gesture='it-resize'; itDrag={size:op.size,d:Math.max(1,Math.hypot(p.x-op.cx,p.y-op.cy))}; return true; }
+    }
+    const hit=itHit(p);
+    if(hit>=0){ itSelect(hit); gesture='it-move'; itDrag={p0:p,cx:operations[hit].cx,cy:operations[hit].cy}; render(); return true; }
+    if(itSel>=0){ itDeselect(); render(); return true; }
+    if(!itText.value.trim()) return false;  // nothing to place: let the drag pan
+    operations.push({type:'itext',text:itText.value,cx:p.x,cy:p.y,...itStyleFromUI()}); redoStack=[];
+    itSelect(operations.length-1); buildComposite(); render();
+    return true;
+  }
+  let shiftHeld=false;
+  window.addEventListener('keydown',e=>{ if(e.key==='Shift') shiftHeld=true; });
+  window.addEventListener('keyup',e=>{ if(e.key==='Shift') shiftHeld=false; });
+  function itPointerMove(p){
+    const op=operations[itSel];
+    if(gesture==='it-move'){ op.cx=itDrag.cx+(p.x-itDrag.p0.x); op.cy=itDrag.cy+(p.y-itDrag.p0.y); }
+    else if(gesture==='it-resize'){ op.size=Math.round(clamp(itDrag.size*Math.hypot(p.x-op.cx,p.y-op.cy)/itDrag.d,4,5000)); itSize.value=op.size; itSizeNum.value=op.size; }
+    else if(gesture==='it-rotate'){
+      let deg=(Math.atan2(p.y-op.cy,p.x-op.cx)+Math.PI/2)*180/Math.PI; deg=((deg+540)%360)-180;
+      deg=shiftHeld?Math.round(deg/15)*15:(Math.abs(deg%90)<2||Math.abs(deg%90)>88?Math.round(deg/90)*90:Math.round(deg));  // snap near 0/90/180
+      if(deg<=-180) deg+=360; op.angle=deg*Math.PI/180; itAngle.value=deg; itAngleVal.textContent=deg+'°';
+    }
+    buildComposite(); render();
+  }
+  // style <-> panel
+  function itStyleFromUI(){
+    return {size:parseInt(itSizeNum.value,10)||64, color:itColor.value, opacity:parseInt(itOpacity.value,10), font:{...itFont},
+      align:itAlignSeg.querySelector('.on').dataset.align, spacing:parseInt(itSpacing.value,10), angle:parseInt(itAngle.value,10)*Math.PI/180,
+      stroke:{on:itStrokeOn.checked,color:itStrokeColor.value,width:parseInt(itStrokeW.value,10)},
+      shadow:{on:itShadowOn.checked,color:itShadowColor.value,opacity:parseInt(itShadowOp.value,10),blur:parseInt(itShadowBlur.value,10),dist:parseInt(itShadowDist.value,10),dir:parseInt(itShadowDir.value,10)},
+      glow:{on:itGlowOn.checked,color:itGlowColor.value,size:parseInt(itGlowSize.value,10),strength:parseInt(itGlowStr.value,10)}};
+  }
+  function itUIFromStyle(op){
+    itText.value=op.text; itSize.value=op.size; itSizeNum.value=op.size; itColor.value=op.color; itOpacity.value=op.opacity;
+    setSegOn(itAlignSeg,'align',op.align); itSpacing.value=op.spacing; const deg=Math.round(op.angle*180/Math.PI); itAngle.value=deg;
+    itStrokeOn.checked=op.stroke.on; itStrokeColor.value=op.stroke.color; itStrokeW.value=op.stroke.width;
+    itShadowOn.checked=op.shadow.on; itShadowColor.value=op.shadow.color; itShadowOp.value=op.shadow.opacity; itShadowBlur.value=op.shadow.blur; itShadowDist.value=op.shadow.dist; itShadowDir.value=op.shadow.dir;
+    itGlowOn.checked=op.glow.on; itGlowColor.value=op.glow.color; itGlowSize.value=op.glow.size; itGlowStr.value=op.glow.strength;
+    itFont={...op.font}; itShowFont(); itSyncLabels();
+  }
+  function itSyncLabels(){
+    itOpacityVal.textContent=itOpacity.value+'%'; itSpacingVal.textContent=itSpacing.value; itAngleVal.textContent=itAngle.value+'°';
+    itStrokeWVal.textContent=itStrokeW.value; itShadowOpVal.textContent=itShadowOp.value+'%'; itShadowBlurVal.textContent=itShadowBlur.value;
+    itShadowDistVal.textContent=itShadowDist.value; itShadowDirVal.textContent=itShadowDir.value+'°'; itGlowSizeVal.textContent=itGlowSize.value; itGlowStrVal.textContent=itGlowStr.value;
+  }
+  function itApply(){  // panel change -> selected text (and the style for the next one)
+    itSyncLabels();
+    if(itSel>=0&&operations[itSel]){ Object.assign(operations[itSel],itStyleFromUI()); buildComposite(); render(); }
+  }
+  function itSelect(i){ itSel=i; itUIFromStyle(operations[i]); updateEditState(); }
+  function itDeselect(){
+    const op=itSel>=0&&operations[itSel];
+    if(op&&!op.text.trim()) operations.splice(itSel,1);  // drop emptied texts
+    itSel=-1; itDrag=null; itText.value='';
+    if(hasImage){ buildComposite(); updateEditState(); }
+  }
+  function itDelete(){ if(itSel<0) return; operations.splice(itSel,1); itSel=-1; itText.value=''; buildComposite(); render(); updateEditState(); }
+  function itFitSizeRange(w,h){  // slider range and a starting size that suit the image
+    const max=Math.max(200,Math.round(Math.max(w,h)*0.3)); itSize.max=max;
+    const v=clamp(Math.round(Math.min(w,h)*0.05),12,max); itSize.value=v; itSizeNum.value=v;
+  }
+  // IME: edit the selected text live; the canvas tap blurs the field first so a conversion is committed
+  itText.addEventListener('input',()=>{ if(itSel>=0&&operations[itSel]){ operations[itSel].text=itText.value; buildComposite(); render(); } });
+  [itColor,itOpacity,itSpacing,itStrokeOn,itStrokeColor,itStrokeW,itShadowOn,itShadowColor,itShadowOp,itShadowBlur,itShadowDist,itShadowDir,itGlowOn,itGlowColor,itGlowSize,itGlowStr]
+    .forEach(el=>el.addEventListener('input',itApply));
+  itAngle.addEventListener('input',itApply);
+  itSize.addEventListener('input',()=>{ itSizeNum.value=itSize.value; itApply(); });
+  itSizeNum.addEventListener('input',()=>{ const v=parseInt(itSizeNum.value,10); if(v>0){ itSize.value=Math.min(v,parseInt(itSize.max,10)); itApply(); } });
+  itAlignSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ setSegOn(itAlignSeg,'align',b.dataset.align); itApply(); }));
+  itFxSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ itFx=b.dataset.fx; setSegOn(itFxSeg,'fx',itFx); refreshUI(); }));
+  itDelBtn.addEventListener('click',itDelete);
+  itUndoBtn.addEventListener('click',()=>{ itSel=-1; itDrag=null; itText.value=''; undo(); });
+  itDupBtn.addEventListener('click',()=>{
+    const op=operations[itSel]; if(!op) return;
+    const d=Math.round(op.size*0.6), copy=JSON.parse(JSON.stringify(op)); copy.cx+=d; copy.cy+=d;
+    operations.push(copy); redoStack=[]; itSelect(operations.length-1); buildComposite(); render();
+  });
+
+  // fonts: system defaults, font files (kept on this device), and the PC's installed fonts (Chrome/Edge)
+  const itFamilies=new Map();  // key -> {label, group, styles:[{label, css?, weight?, load?}]}
+  function itAddFamily(key,label,group,styles){ itFamilies.set(key,{label,group,styles}); }
+  itAddFamily('sys-sans','システム（ゴシック）','システム',[{label:'標準',css:'sans-serif',weight:400},{label:'太字',css:'sans-serif',weight:700}]);
+  itAddFamily('sys-serif','システム（明朝）','システム',[{label:'標準',css:'serif',weight:400},{label:'太字',css:'serif',weight:700}]);
+  let itFamilyKey='sys-sans', itStyleIdx=0;
+  function itRenderFamilies(){
+    itFamily.innerHTML='';
+    const groups={};
+    for(const [k,f] of itFamilies){ (groups[f.group]=groups[f.group]||[]).push([k,f]); }
+    for(const g of ['システム','読み込んだフォント','PCのフォント']){
+      if(!groups[g]) continue;
+      const og=document.createElement('optgroup'); og.label=g;
+      groups[g].forEach(([k,f])=>{ const o=document.createElement('option'); o.value=k; o.textContent=f.label; og.appendChild(o); });
+      itFamily.appendChild(og);
+    }
+    itFamily.value=itFamilyKey; itRenderStyles();
+  }
+  function itRenderStyles(){
+    const f=itFamilies.get(itFamilyKey); itStyle.innerHTML='';
+    f.styles.forEach((st,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=st.label; itStyle.appendChild(o); });
+    itStyle.value=itStyleIdx; itStyle.style.display=f.styles.length>1?'':'none';
+  }
+  function itShowFont(){  // reflect the selected text's font in the selects, when it is in the list
+    for(const [k,f] of itFamilies){ const i=f.styles.findIndex(st=>st.css===itFont.css&&(st.weight||400)===(itFont.weight||400)); if(i>=0){ itFamilyKey=k; itStyleIdx=i; break; } }
+    itFamily.value=itFamilyKey; itRenderStyles();
+  }
+  async function itChooseFont(){
+    const st=itFamilies.get(itFamilyKey).styles[itStyleIdx];
+    try{
+      if(!st.css) st.css=await st.load();
+      itFont={css:st.css,weight:st.weight||400,label:itFamilies.get(itFamilyKey).label+' '+st.label};
+      itApply();
+    }catch(err){ showProgress('フォントを読み込めませんでした',String(err&&err.message||err).slice(0,120)); setTimeout(hideProgress,2800); }
+  }
+  itFamily.addEventListener('change',()=>{ itFamilyKey=itFamily.value; itStyleIdx=0; itRenderStyles(); itChooseFont(); });
+  itStyle.addEventListener('change',()=>{ itStyleIdx=parseInt(itStyle.value,10); itChooseFont(); });
+  let itFontSeq=0;
+  async function itFace(source){ const name=`isfont-${++itFontSeq}`, ff=new FontFace(name,source); await ff.load(); document.fonts.add(ff); return name; }
+  // installed fonts (Local Font Access API, Chrome/Edge on desktop; asks for permission once)
+  if(!('queryLocalFonts' in window)){ itLocalBtn.disabled=true; itLocalBtn.title='このブラウザでは使えません（「ファイル…」から読み込んでください）'; }
+  itLocalBtn.addEventListener('click',async ()=>{
+    try{
+      const list=await window.queryLocalFonts(), fams=new Map();
+      for(const fd of list){ if(!fams.has(fd.family)) fams.set(fd.family,[]); fams.get(fd.family).push(fd); }
+      [...fams.keys()].sort((a,b)=>a.localeCompare(b,'ja')).forEach(fam=>{
+        itAddFamily('local-'+fam,fam,'PCのフォント',fams.get(fam).map(fd=>({label:fd.style||fd.fullName,
+          load:async()=>{ try{ return await itFace(`local("${fd.postscriptName}"), local("${fd.fullName}")`); }
+                          catch{ return await itFace(await (await fd.blob()).arrayBuffer()); } }})));
+      });
+      itRenderFamilies(); itLocalBtn.textContent=`PCのフォント（${fams.size}）`;
+    }catch(err){ showProgress('PC のフォントを読み込めませんでした',err&&err.name==='NotAllowedError'?'フォントへのアクセスが許可されませんでした':String(err&&err.message||err).slice(0,120)); setTimeout(hideProgress,3000); }
+  });
+  // font files: loaded with FontFace and kept on this device (IndexedDB) for next time
+  let itFontFiles=[];
+  function itAddFontFile(rec){
+    itAddFamily('file-'+rec.id,rec.name.replace(/\.[^.]+$/,''),'読み込んだフォント',[{label:'標準',load:()=>itFace(rec.buf)}]);
+  }
+  itFileBtn.addEventListener('click',()=>{ itFontInput.value=''; itFontInput.click(); });
+  itFontInput.addEventListener('change',async e=>{
+    const file=e.target.files[0]; if(!file) return;
+    try{
+      const rec={id:Date.now().toString(36),name:file.name,buf:await file.arrayBuffer()};
+      await itFace(rec.buf.slice(0));  // validate before keeping it
+      itFontFiles.push(rec); idbSet('font-files',itFontFiles); itAddFontFile(rec);
+      itFamilyKey='file-'+rec.id; itStyleIdx=0; itRenderFamilies(); itChooseFont();
+    }catch(err){ showProgress('フォントを読み込めませんでした','対応形式: .ttf / .otf / .woff / .woff2'); setTimeout(hideProgress,2800); }
+  });
+  idbGet('font-files').then(v=>{ if(Array.isArray(v)){ itFontFiles=v; v.forEach(itAddFontFile); } itRenderFamilies(); });
+  itRenderFamilies(); itSyncLabels();
 
   /* ---------- PDF: open, write text, save (pdf.js renders, pdf-lib saves) ---------- */
   const PDFJS_V='6.4.299', PDFLIB_V='1.17.1';
