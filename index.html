@@ -121,6 +121,7 @@
   .stamp-item.on{outline:2px solid var(--accent);outline-offset:1px;}
   .stamp-item .x{position:absolute;top:-7px;right:-7px;width:18px;height:18px;padding:0;border:none;border-radius:50%;
     background:var(--ink);color:#fff;font-size:11px;line-height:18px;cursor:pointer;}
+  .dn-hold{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;}
   .chk{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--ink-soft);white-space:nowrap;cursor:pointer;}
 
   /* progress overlay */
@@ -251,13 +252,17 @@
 
   <div class="uppanel" id="uppanel">
     <div class="group">
+      <span class="group-label">機能</span>
+      <div class="seg" id="upModeSeg"><button data-up="scale" class="on">拡大</button><button data-up="denoise">ノイズ除去</button></div>
+    </div>
+    <div class="group um-scale">
       <span class="group-label">モデル</span>
       <div class="seg" id="modelSeg">
         <button data-model="photo" class="on">写真</button>
         <button data-model="illust">イラスト</button>
       </div>
     </div>
-    <div class="group">
+    <div class="group um-scale">
       <span class="group-label">倍率</span>
       <div class="seg" id="scaleSeg">
         <button data-scale="1.5">1.5×</button>
@@ -265,9 +270,34 @@
         <button data-scale="4">4×</button>
       </div>
     </div>
-    <span class="badge none" id="accelBadge"><span class="dot"></span><span id="accelText">確認中…</span></span>
-    <div class="up-actions">
+    <span class="badge none um-scale" id="accelBadge"><span class="dot"></span><span id="accelText">確認中…</span></span>
+    <div class="up-actions um-scale">
       <button class="btn btn-primary btn-sm" id="upscaleBtn">画質を上げる</button>
+    </div>
+    <div class="group um-denoise">
+      <span class="group-label">強さ</span>
+      <div class="seg" id="dnStrengthSeg"><button data-h="4">弱</button><button data-h="6" class="on">中</button><button data-h="10">強</button></div>
+    </div>
+    <div class="ctl um-denoise" style="min-width:240px;">
+      <label>元画像を混ぜる</label>
+      <input type="range" id="dnMix" min="0" max="100" value="40" step="5">
+      <span class="val" id="dnMixVal" style="min-width:38px;">40%</span>
+    </div>
+    <div class="group um-denoise">
+      <span class="group-label">範囲</span>
+      <div class="seg" id="dnRangeSeg"><button data-range="all" class="on">全体</button><button data-range="rect">四角</button><button data-range="brush">ブラシ</button></div>
+    </div>
+    <div class="ctl um-denoise" id="dnBrushCtl" style="display:none;">
+      <label>太さ</label>
+      <input type="range" id="dnBrush" min="10" max="300" value="80" step="2">
+      <span class="val" id="dnBrushVal">80</span>
+    </div>
+    <div class="panel-actions um-denoise">
+      <button class="btn btn-ghost btn-sm dn-hold" id="dnCompareBtn" title="押している間、ノイズ除去前の画像を表示">比較</button>
+      <button class="btn btn-ghost btn-sm" id="dnUndoBtn" disabled>元に戻す</button>
+    </div>
+    <div class="up-actions um-denoise" id="dnApplyWrap">
+      <button class="btn btn-primary btn-sm" id="dnApplyBtn">ノイズを除去</button>
     </div>
   </div>
 
@@ -420,6 +450,8 @@
   const pdfText=$('pdfText'), pdfSize=$('pdfSize'), pdfSizeVal=$('pdfSizeVal'), pdfFontSeg=$('pdfFontSeg'), pdfColorSeg=$('pdfColorSeg');
   const pdfDelBtn=$('pdfDelBtn'), pdfUndoBtn=$('pdfUndoBtn'), pdfSaveBtn=$('pdfSaveBtn'), pdfToolSeg=$('pdfToolSeg');
   const stampList=$('stampList'), stampAddBtn=$('stampAddBtn'), stampWhite=$('stampWhite'), stampInput=$('stampInput');
+  const upModeSeg=$('upModeSeg'), dnStrengthSeg=$('dnStrengthSeg'), dnMix=$('dnMix'), dnMixVal=$('dnMixVal'), dnRangeSeg=$('dnRangeSeg');
+  const dnBrushCtl=$('dnBrushCtl'), dnBrush=$('dnBrush'), dnBrushVal=$('dnBrushVal'), dnCompareBtn=$('dnCompareBtn'), dnUndoBtn=$('dnUndoBtn'), dnApplyBtn=$('dnApplyBtn');
   const stampSize=$('stampSize'), stampSizeVal=$('stampSizeVal'), penWidth=$('penWidth'), penWidthVal=$('penWidthVal');
 
   let currentTab='mosaic', hasImage=false, sourceName='image', sourceBytes=0;
@@ -431,7 +463,9 @@
   let outFormat='jpg';
   // PDF mode: {doc (pdf.js), bytes (original file), cur, pages:[{ops, redo, vp, rs}]}; null for images
   let pdfDoc=null, selItemIdx=-1, itemDrag=null, pdfFont='mincho', pdfColor='#000000';
-  let pdfTool='text', myStamps=[], curStamp=null, penPts=null;  // tool: 'text' | 'stamp' | 'pen'
+  let pdfTool='text', myStamps=[], curStamp=null, penPts=null;
+  // 画質アップ tab: 'scale' (AI enlarge) | 'denoise' (NLM); denoise strength h, range 'all'|'rect'|'brush'
+  let upMode='scale', dnH=6, dnRange='all', denoising=false, viewSrc=null;  // tool: 'text' | 'stamp' | 'pen'
 
   // layers
   const base=document.createElement('canvas'), bctx=base.getContext('2d');
@@ -448,6 +482,7 @@
 
   /* ---------- effect application ---------- */
   function applyOp(op){
+    if(op.type==='denoise'){ cctx.putImageData(op.img,op.x,op.y); return; }  // cached result of that region
     if(op.type==='text'){ if(op.text&&pdfDoc) drawText(cctx,op,op.pt*pageRS(),op.x,op.y); return; }
     if(op.type==='stamp'){ const b=itemBox(op); cctx.drawImage(op.stamp.img,b.x,b.y,b.w,b.h); return; }
     if(op.type==='pen'){ strokePen(cctx,op.pts,op.w*pageRS(),op.color); return; }
@@ -585,7 +620,7 @@
     if(!hasImage) return;
     ctx.imageSmoothingEnabled=scale<1.2;
     ctx.setTransform(scale,0,0,scale,ox,oy);
-    ctx.drawImage(comp,0,0);
+    ctx.drawImage(viewSrc||comp,0,0);  // viewSrc: the before-denoise image while 比較 is held
     if(preview){
       ctx.save();
       ctx.strokeStyle='#6B3FA0'; ctx.fillStyle='rgba(107,63,160,0.22)';
@@ -647,6 +682,7 @@
   const pointers=new Map();
   let gesture=null, startImg=null, panLast=null, pinchPrev=null, spaceHeld=false, brushPts=null, stickerStart=null;
   const canEdit=()=>hasImage&&currentTab==='mosaic';
+  const dnSelecting=()=>hasImage&&currentTab==='upscale'&&upMode==='denoise'&&dnRange!=='all'&&!denoising;
   const isPanInput=e=>e.button===1||spaceHeld||!canEdit();
   const mid=p=>({x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2});
   const dist=p=>Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);
@@ -664,7 +700,11 @@
         if(document.activeElement===pdfText) pdfText.blur();
         if(pdfPointerDown(c)){ e.preventDefault(); return; }
       }
-      if(canEdit()&&!isPanInput(e)){
+      if(dnSelecting()&&e.button!==1&&!spaceHeld){
+        const p=canvasToImg(c);
+        if(dnRange==='rect'){ gesture='select'; startImg=p; preview={rect:{x:p.x,y:p.y,w:0,h:0}}; }
+        else{ gesture='brush'; brushPts=[p]; preview={pts:brushPts,thickness:parseInt(dnBrush.value,10)}; render(); }
+      }else if(canEdit()&&!isPanInput(e)){
         const p=canvasToImg(c);
         if(effect==='sticker'){
           const hit=hitSticker(p,c);
@@ -720,10 +760,16 @@
     const g=gesture; pointers.delete(e.pointerId);
     if(g==='select'&&preview&&preview.rect){
       const r=preview.rect, minImg=8*dpr/scale;
-      if(r.w>minImg&&r.h>minImg) commit({effect,strength:parseInt(strength.value,10),shape:'rect',rect:{...r},color:fillColor});
+      if(r.w>minImg&&r.h>minImg){
+        if(currentTab==='upscale') runDenoise({shape:'rect',rect:{...r}});
+        else commit({effect,strength:parseInt(strength.value,10),shape:'rect',rect:{...r},color:fillColor});
+      }
       preview=null; startImg=null;
     }else if(g==='brush'&&brushPts){
-      if(brushPts.length>0) commit({effect,strength:parseInt(strength.value,10),shape:'path',path:brushPts.slice(),thickness:parseInt(brushSize.value,10),color:fillColor});
+      if(brushPts.length>0){
+        if(currentTab==='upscale') runDenoise({shape:'path',path:brushPts.slice(),thickness:parseInt(dnBrush.value,10)});
+        else commit({effect,strength:parseInt(strength.value,10),shape:'path',path:brushPts.slice(),thickness:parseInt(brushSize.value,10),color:fillColor});
+      }
       preview=null; brushPts=null;
     }else if(g&&g.startsWith('sticker-')){
       stickerStart=null; updateEditState();
@@ -758,7 +804,7 @@
   });
   window.addEventListener('keyup',e=>{ if(e.code==='Space'){ spaceHeld=false; if(!gesture) setCursor(); } });
 
-  function setCursor(force){ if(force){canvas.style.cursor=force;return;} canvas.style.cursor=(canEdit()||(currentTab==='pdf'&&pdfDoc))?'crosshair':(hasImage?'grab':'default'); }
+  function setCursor(force){ if(force){canvas.style.cursor=force;return;} canvas.style.cursor=(canEdit()||dnSelecting()||(currentTab==='pdf'&&pdfDoc))?'crosshair':(hasImage?'grab':'default'); }
 
   /* ---------- effect / mode / sliders ---------- */
   effectSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
@@ -900,6 +946,7 @@
   function updateEditState(){
     const on=canEdit()&&operations.length>0; undoBtn.disabled=!on; clearBtn.disabled=!on;
     pdfUndoBtn.disabled=!(pdfDoc&&operations.length>0); pdfDelBtn.disabled=selItemIdx<0;
+    dnUndoBtn.disabled=!(hasImage&&!pdfDoc&&operations.length>0)||denoising;
   }
 
   /* ---------- tabs ---------- */
@@ -931,10 +978,19 @@
       : pdfTool==='pen'?'ドラッグで手書き／画面の移動・拡大は 2 本指（PC はスペース＋ドラッグ、ホイール）'
       : '文字を入力してページをタップ／文字はドラッグで移動、タップで選択して修正';
     else if(m) hint.innerHTML='ドラッグで範囲指定／ホイール・ピンチで拡大、中ボタン・スペースで移動';
+    else if(up&&upMode==='denoise') hint.innerHTML= dnRange==='all' ? '強さを選んで「ノイズを除去」／「比較」を押している間は除去前を表示'
+      : dnRange==='rect' ? 'ドラッグした四角の中だけノイズを除去（境界はなじませます）／スペース・中ボタンで移動'
+      : 'なぞった部分だけノイズを除去（境界はなじませます）／スペース・中ボタンで移動';
     else if(up) hint.innerHTML='倍率を選んで「画質を上げる」（移動・拡大も可能）';
     else hint.innerHTML='形式を選んで「変換して保存」（現在の画像をそのまま変換します）';
     setCursor(); updateEditState();
     if(hasImage&&cv) scheduleEstimate();
+    uppanel.querySelectorAll('.um-scale,.um-denoise').forEach(el=>{
+      const show=el.classList.contains(upMode==='denoise'?'um-denoise':'um-scale');
+      const off=(el===dnBrushCtl&&dnRange!=='brush')||(el.id==='dnApplyWrap'&&dnRange!=='all');  // rect/brush apply on drag
+      el.style.display= show&&!off ? '' : 'none';
+    });
+    dnApplyBtn.disabled=denoising;
     if(hasImage&&up&&!accelChecked){ accelChecked=true; detectAccel().then(setAccelBadge); }
   }
 
@@ -1337,6 +1393,181 @@
       return await enlargeWaifu2x(input, sess, cfg, fw, fh);
     }
   }
+
+  /* ---------- noise reduction (non-local means, as OpenCV's fastNlMeansDenoisingColored) ---------- */
+  // Non-local means, as OpenCV's fastNlMeansDenoisingColored: 8-bit Lab (linear, as COLOR_LBGR2Lab), L with h, ab with hColor,
+  // 7x7 template, 21x21 search, weight exp(-avgSSD/(h^2*channels)) cut below 0.001, reflect-101 borders.
+  // src: RGBA bytes (sw x sh); denoises the rect (ox,oy,ow,oh) inside it; returns RGBA bytes ow x oh (alpha copied).
+  function nlmDenoise(src,sw,sh,ox,oy,ow,oh,h,hColor){
+    const T=3,S=10,B=T+S;
+    const lin=new Float32Array(256); for(let i=0;i<256;i++) lin[i]=i/255;  // OpenCV uses COLOR_LBGR2Lab: no sRGB gamma
+    const f=t=>t>0.008856?Math.cbrt(t):7.787*t+16/116;
+    const PW=ow+2*B, PH=oh+2*B, N=PW*PH;
+    const L=new Float32Array(N), A=new Float32Array(N), Bc=new Float32Array(N);
+    const refl=(i,n)=>{ if(n===1) return 0; while(i<0||i>=n){ if(i<0) i=-i; if(i>=n) i=2*n-2-i; } return i; };
+    for(let py=0;py<PH;py++){
+      const sy=refl(oy-B+py,sh);
+      for(let px=0;px<PW;px++){
+        const sx=refl(ox-B+px,sw), si=(sy*sw+sx)*4;
+        const r=lin[src[si]], g=lin[src[si+1]], b=lin[src[si+2]];
+        const X=(0.412453*r+0.357580*g+0.180423*b)/0.950456, Y=0.212671*r+0.715160*g+0.072169*b, Z=(0.019334*r+0.119193*g+0.950227*b)/1.088754;
+        const fx=f(X), fy=f(Y), fz=f(Z), Lv=Y>0.008856?116*fy-16:903.3*Y;
+        const k=py*PW+px;  // 8-bit Lab, rounded like OpenCV's CV_8UC3 result
+        L[k]=Math.min(255,Math.max(0,Math.round(Lv*2.55))); A[k]=Math.min(255,Math.max(0,Math.round(500*(fx-fy)+128))); Bc[k]=Math.min(255,Math.max(0,Math.round(200*(fy-fz)+128)));
+      }
+    }
+    const outL=group([L],h), outAB=group([A,Bc],hColor);
+    function group(chs,hh){
+      const c=chs.length, tw=2*T+1, area=tw*tw, AW=ow+2*T, AH=oh+2*T;
+      const E=new Float32Array(AW*AH), Hs=new Float32Array(ow*AH), V=new Float32Array(ow);
+      const den=new Float32Array(ow*oh), num=chs.map(()=>new Float32Array(ow*oh));
+      const sc=1/(hh*hh*c), Q=8, maxD=-Math.log(0.001)/sc, nL=Math.ceil(maxD*Q);
+      const lut=new Float32Array(nL); for(let i=0;i<nL;i++) lut[i]=Math.exp(-(i+0.5)/Q*sc);
+      const qa=Q/area;
+      for(let dy=-S;dy<=S;dy++) for(let dx=-S;dx<=S;dx++){
+        for(let ay=0;ay<AH;ay++){  // squared differences over the template-expanded area
+          const r1=(B-T+ay)*PW+B-T, r2=r1+dy*PW+dx, e=ay*AW;
+          if(c===1){ const C=chs[0]; for(let ax=0;ax<AW;ax++){ const d=C[r1+ax]-C[r2+ax]; E[e+ax]=d*d; } }
+          else{ const C0=chs[0],C1=chs[1]; for(let ax=0;ax<AW;ax++){ const d0=C0[r1+ax]-C0[r2+ax], d1=C1[r1+ax]-C1[r2+ax]; E[e+ax]=d0*d0+d1*d1; } }
+          let s=0; for(let ax=0;ax<tw;ax++) s+=E[e+ax];  // horizontal box sum
+          const hrow=ay*ow; Hs[hrow]=s;
+          for(let x=1;x<ow;x++){ s+=E[e+x+tw-1]-E[e+x-1]; Hs[hrow+x]=s; }
+        }
+        V.fill(0); for(let ay=0;ay<tw;ay++){ const hr=ay*ow; for(let x=0;x<ow;x++) V[x]+=Hs[hr+x]; }
+        const C0=chs[0], C1=chs[c-1], N0=num[0], N1=num[c-1];
+        for(let y=0;y<oh;y++){
+          const pr=(B+y+dy)*PW+B+dx, o=y*ow;
+          if(c===1){
+            for(let x=0;x<ow;x++){ const idx=(V[x]*qa)|0; if(idx<nL){ const w=lut[idx]; den[o+x]+=w; N0[o+x]+=w*C0[pr+x]; } }
+          }else{
+            for(let x=0;x<ow;x++){ const idx=(V[x]*qa)|0; if(idx<nL){ const w=lut[idx]; den[o+x]+=w; N0[o+x]+=w*C0[pr+x]; N1[o+x]+=w*C1[pr+x]; } }
+          }
+          if(y+1<oh){ const add=(y+tw)*ow, sub=y*ow; for(let x=0;x<ow;x++) V[x]+=Hs[add+x]-Hs[sub+x]; }
+        }
+      }
+      return num.map(n=>{ for(let i=0;i<n.length;i++) n[i]=Math.round(n[i]/den[i]); return n; });
+    }
+    // back to sRGB
+    const out=new Uint8ClampedArray(ow*oh*4);
+    const ginv=v=>v;  // COLOR_Lab2LBGR: linear
+    for(let y=0;y<oh;y++) for(let x=0;x<ow;x++){
+      const i=y*ow+x, Lv=outL[0][i]/2.55, a=outAB[0][i]-128, b=outAB[1][i]-128;
+      const fy=(Lv+16)/116, fx=fy+a/500, fz=fy-b/200;
+      const finv=t=>t>0.206893?t*t*t:(t-16/116)/7.787;
+      const X=finv(fx)*0.950456, Y=Lv>8?fy*fy*fy:Lv/903.3, Z=finv(fz)*1.088754;
+      const r=3.240479*X-1.53715*Y-0.498535*Z, g=-0.969256*X+1.875991*Y+0.041556*Z, bb=0.055648*X-0.204043*Y+1.057311*Z;
+      const o=i*4, si=((oy+y)*sw+ox+x)*4;
+      out[o]=ginv(Math.max(0,r))*255; out[o+1]=ginv(Math.max(0,g))*255; out[o+2]=ginv(Math.max(0,bb))*255; out[o+3]=src[si+3];
+    }
+    return out;
+  }
+
+  // Run on all cores: rows are split into strips, each sent with 13px of real neighbours above and
+  // below (template 3 + search 10), so the strips give exactly the single-pass result.
+  const NLM_MARGIN=13;
+  let nlmWorkers=null;
+  function getNlmWorkers(){
+    if(nlmWorkers) return nlmWorkers;
+    const n=Math.max(1,Math.min(navigator.hardwareConcurrency||4, IS_MOBILE?4:8));
+    try{
+      const src=URL.createObjectURL(new Blob([nlmDenoise.toString()+`
+onmessage=e=>{ const d=e.data, out=nlmDenoise(new Uint8ClampedArray(d.src),d.sw,d.sh,d.ox,d.oy,d.ow,d.oh,d.h,d.h);
+  postMessage({id:d.id,out:out.buffer},[out.buffer]); };`],{type:'text/javascript'}));
+      nlmWorkers=Array.from({length:n},()=>new Worker(src));
+    }catch{ nlmWorkers=[]; }  // no workers: run on the main thread
+    return nlmWorkers;
+  }
+  async function nlmParallel(src,sw,sh,ox,oy,ow,oh,h,onStrip){
+    const workers=getNlmWorkers(), out=new Uint8ClampedArray(ow*oh*4);
+    if(!workers.length){ out.set(nlmDenoise(src,sw,sh,ox,oy,ow,oh,h,h)); onStrip(1,1); return out; }
+    const k=Math.max(1,Math.min(workers.length,Math.ceil(oh/48))), rows=Math.ceil(oh/k); let done=0;
+    await Promise.all(Array.from({length:k},(_,i)=>new Promise((res,rej)=>{
+      const y0=i*rows, y1=Math.min(oh,y0+rows); if(y0>=y1) return res();
+      const s0=Math.max(0,oy+y0-NLM_MARGIN), s1=Math.min(sh,oy+y1+NLM_MARGIN);
+      const part=src.slice(s0*sw*4,s1*sw*4), w=workers[i];
+      w.onmessage=e=>{ out.set(new Uint8ClampedArray(e.data.out),y0*ow*4); onStrip(++done,k); res(); };
+      w.onerror=err=>rej(new Error(err.message||'worker error'));
+      w.postMessage({id:i,src:part.buffer,sw,sh:s1-s0,ox,oy:oy+y0-s0,ow,oh:y1-y0,h},[part.buffer]);
+    })));
+    return out;
+  }
+  // soft-edged mask (0..1) for a rect or brush stroke, within the box (bx,by,bw,bh)
+  function denoiseMask(sel,bx,by,bw,bh,feather){
+    const c=document.createElement('canvas'); c.width=bw; c.height=bh;
+    const x=c.getContext('2d'); x.translate(-bx,-by); x.fillStyle=x.strokeStyle='#fff';
+    if(sel.shape==='rect') x.fillRect(sel.rect.x,sel.rect.y,sel.rect.w,sel.rect.h);
+    else{
+      const P=sel.path; x.lineWidth=sel.thickness; x.lineCap=x.lineJoin='round'; x.beginPath();
+      if(P.length===1){ x.arc(P[0].x,P[0].y,sel.thickness/2,0,Math.PI*2); x.fill(); }
+      else{ x.moveTo(P[0].x,P[0].y); for(let i=1;i<P.length;i++) x.lineTo(P[i].x,P[i].y); x.stroke(); }
+    }
+    const a=x.getImageData(0,0,bw,bh).data, m=new Float32Array(bw*bh);
+    for(let i=0;i<m.length;i++) m[i]=a[i*4+3]/255;
+    const r=Math.max(1,Math.round(feather/2)), t=new Float32Array(m.length);
+    for(let pass=0;pass<2;pass++){  // two separable box blurs ~ gaussian feather
+      for(let y=0;y<bh;y++){ const o=y*bw; let s=0, n=0;
+        for(let i=-r;i<=r;i++) if(i>=0&&i<bw){ s+=m[o+i]; n++; }
+        for(let xx=0;xx<bw;xx++){ t[o+xx]=s/n; const a1=xx-r, a2=xx+r+1; if(a1>=0){ s-=m[o+a1]; n--; } if(a2<bw){ s+=m[o+a2]; n++; } } }
+      for(let xx=0;xx<bw;xx++){ let s=0, n=0;
+        for(let i=-r;i<=r;i++) if(i>=0&&i<bh){ s+=t[i*bw+xx]; n++; }
+        for(let y=0;y<bh;y++){ m[y*bw+xx]=s/n; const a1=y-r, a2=y+r+1; if(a1>=0){ s-=t[a1*bw+xx]; n--; } if(a2<bh){ s+=t[a2*bw+xx]; n++; } } }
+    }
+    return m;
+  }
+  // sel: {shape:'all'} | {shape:'rect',rect} | {shape:'path',path,thickness}
+  async function runDenoise(sel){
+    if(!hasImage||denoising) return;
+    const W=comp.width, H=comp.height;
+    let x0=0,y0=0,x1=W,y1=H,feather=0;
+    if(sel.shape==='rect'){ feather=Math.max(4,Math.min(sel.rect.w,sel.rect.h)*0.06); x0=sel.rect.x; y0=sel.rect.y; x1=x0+sel.rect.w; y1=y0+sel.rect.h; }
+    else if(sel.shape==='path'){
+      feather=Math.max(3,sel.thickness*0.3); const r=sel.thickness/2;
+      x0=Math.min(...sel.path.map(q=>q.x))-r; y0=Math.min(...sel.path.map(q=>q.y))-r;
+      x1=Math.max(...sel.path.map(q=>q.x))+r; y1=Math.max(...sel.path.map(q=>q.y))+r;
+    }
+    const bx=Math.max(0,Math.floor(x0-feather)), by=Math.max(0,Math.floor(y0-feather));
+    const bw=Math.min(W,Math.ceil(x1+feather))-bx, bh=Math.min(H,Math.ceil(y1+feather))-by;
+    if(bw<2||bh<2) return;
+    denoising=true; refreshUI();
+    const mix=parseInt(dnMix.value,10)/100, label={4:'弱',6:'中',10:'強'}[dnH]||dnH;
+    showProgress('ノイズを除去中… 0%',`強さ ${label} ／ 元画像 ${Math.round(mix*100)}% ／ ${bw}×${bh}px`);
+    try{
+      const sx=Math.max(0,bx-NLM_MARGIN), sy=Math.max(0,by-NLM_MARGIN);
+      const sw=Math.min(W,bx+bw+NLM_MARGIN)-sx, sh=Math.min(H,by+bh+NLM_MARGIN)-sy;
+      const src=cctx.getImageData(sx,sy,sw,sh).data;
+      const den=await nlmParallel(src,sw,sh,bx-sx,by-sy,bw,bh,dnH,(d,n)=>{ setFill(d/n); progressText.textContent=`ノイズを除去中… ${Math.round(d/n*100)}%`; });
+      const mask=sel.shape==='all'?null:denoiseMask(sel,bx,by,bw,bh,feather);
+      const img=cctx.getImageData(bx,by,bw,bh), o=img.data;
+      for(let i=0,p=0;i<o.length;i+=4,p++){  // original + (denoised - original) * (1 - mix) * mask; alpha kept
+        const k=(1-mix)*(mask?mask[p]:1); if(k<=0) continue;
+        o[i]+=(den[i]-o[i])*k; o[i+1]+=(den[i+1]-o[i+1])*k; o[i+2]+=(den[i+2]-o[i+2])*k;
+      }
+      operations.push({type:'denoise',x:bx,y:by,img}); redoStack=[];
+      buildComposite(); hideProgress();
+    }catch(err){
+      progressText.textContent='ノイズ除去に失敗しました'; progressSub.textContent=String(err&&err.message||err).slice(0,120);
+      setTimeout(hideProgress,3200);
+    }finally{ denoising=false; refreshUI(); render(); }
+  }
+  upModeSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ upMode=b.dataset.up; setSegOn(upModeSeg,'up',upMode); refreshUI(); }));
+  dnStrengthSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ dnH=parseFloat(b.dataset.h); setSegOn(dnStrengthSeg,'h',b.dataset.h); }));
+  dnRangeSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ dnRange=b.dataset.range; setSegOn(dnRangeSeg,'range',dnRange); refreshUI(); }));
+  dnMix.addEventListener('input',()=>dnMixVal.textContent=dnMix.value+'%');
+  dnBrush.addEventListener('input',()=>dnBrushVal.textContent=dnBrush.value);
+  dnApplyBtn.addEventListener('click',()=>runDenoise({shape:'all'}));
+  dnUndoBtn.addEventListener('click',undo);
+  // 比較: while held, show the image without the noise-reduction steps
+  function showBefore(on){ viewSrc=on&&hasImage?composeWithout('denoise'):null; render(); }
+  // the composite as it would be without one kind of operation (other edits are kept)
+  function composeWithout(type){
+    const saved=operations; operations=saved.filter(op=>op.type!==type);
+    const c=document.createElement('canvas'); c.width=comp.width; c.height=comp.height;
+    buildComposite(); c.getContext('2d').drawImage(comp,0,0);
+    operations=saved; buildComposite(); return c;
+  }
+  dnCompareBtn.addEventListener('pointerdown',e=>{ e.preventDefault(); showBefore(true); });
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>dnCompareBtn.addEventListener(ev,()=>{ if(viewSrc) showBefore(false); }));
+  dnCompareBtn.addEventListener('contextmenu',e=>e.preventDefault());
 
   /* ---------- upscale button ---------- */
   let upscaling=false;
